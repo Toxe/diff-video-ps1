@@ -18,6 +18,7 @@ function ShowDuration {
     )
 
     Write-Host ("--> {0:n3} seconds" -f (((Get-Date) - $t).TotalSeconds))
+    Write-Host ""
 }
 
 function EvalArgs {
@@ -34,7 +35,7 @@ function GetNumberOfCoresAndThreads {
     $num_cores = ([Environment]::ProcessorCount)
     $imagick_threads = 2
     $ffmpeg_threads = [int]($num_cores / 2)
-    Write-Host "cores: $num_cores"
+    Write-Host "CPU cores: $num_cores"
     Write-Host "IMagick threads: $imagick_threads"
     Write-Host "FFmpeg threads: $ffmpeg_threads"
 
@@ -77,6 +78,7 @@ function ExtractFrames {
         [int]$ffmpeg_threads
     )
 
+    Write-Host ""
     Write-Host "extracting frames..."
     $t0 = Get-Date
 
