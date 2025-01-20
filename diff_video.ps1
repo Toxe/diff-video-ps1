@@ -118,13 +118,17 @@ function GenerateDiffs {
 
     Write-Host "generating diffs..."
     $t0 = Get-Date
+    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
 
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
         $id = "{0:d6}" -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_c.png"
         magick -limit thread $using:imagick_threads "${frame}_c.png" -auto-level "${frame}_d.png"
-        Write-Host $id
+
+        $q = $using:frames_completed
+        $q.Enqueue(1)
+        Write-Progress -Activity "generating diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete (100 * $q.Count / $using:number_of_frames)
     }
 
     ShowDuration $t0
