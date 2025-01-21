@@ -212,7 +212,7 @@ function RenderOutputVideo {
     Write-Host "rendering output video..."
 
     $t0 = Get-Date
-    ffmpeg -v error -framerate 60000/1001 -i "$work_dir\%06d_norm.png" -c:v libx264 -crf 18 -preset veryfast "$output_video"
+    ffmpeg -v error -framerate 60000/1001 -i "$work_dir\%06d_norm.png" -vf "colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0" -c:v libx264 -crf 18 -preset veryfast "$output_video"
     ShowDuration $t0
 }
 
