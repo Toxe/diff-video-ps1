@@ -28,7 +28,7 @@ function EvalArgs {
 
     if ($params.Count -lt 3) { Die 1 "Missing arguments" }
 
-    return @($params[0], $params[1], $params[2])
+    return $params[0], $params[1], $params[2]
 }
 
 function GetNumberOfCoresAndThreads {
@@ -39,7 +39,7 @@ function GetNumberOfCoresAndThreads {
     Write-Host "IMagick threads: $imagick_threads"
     Write-Host "FFmpeg threads: $ffmpeg_threads"
 
-    return @($num_cores, $imagick_threads, $ffmpeg_threads)
+    return $num_cores, $imagick_threads, $ffmpeg_threads
 }
 
 function InputVideoMustExist {
@@ -125,12 +125,79 @@ function GenerateDiffs {
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
         $id = "{0:d6}" -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-        magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_c.png"
-        magick -limit thread $using:imagick_threads "${frame}_c.png" -auto-level "${frame}_d.png"
+        magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_diff.png"
 
         $q = $using:frames_completed
         $q.Enqueue(1)
-        Write-Progress -Activity "generating diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete (100 * $q.Count / $using:number_of_frames)
+        [int] $percent = 100 * $q.Count / $using:number_of_frames
+        Write-Progress -Activity "generating diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
+    }
+
+    ShowDuration $t0
+}
+
+function CalculateMinMaxIntensity {
+    param (
+        [string]$work_dir,
+        [int]$number_of_frames,
+        [int]$num_cores,
+        [int]$imagick_threads
+    )
+
+    Write-Host "calculating min/max intensity..."
+    $t0 = Get-Date
+    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
+
+    $lines = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
+        $id = "{0:d6}" -f $_
+        $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
+        magick identify -limit thread $using:imagick_threads -format "%[min] %[max]\n" "${frame}_diff.png"
+
+        $q = $using:frames_completed
+        $q.Enqueue(1)
+        [int] $percent = 100 * $q.Count / $using:number_of_frames
+        Write-Progress -Activity "calculating min/max intensity..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
+    }
+
+    $min_intensity = [int]::MaxValue
+    $max_intensity = [int]::MinValue
+
+    $lines | ForEach-Object {
+        $a, $b = $_ -split " "
+        $min_intensity = [math]::min($a, $min_intensity)
+        $max_intensity = [math]::max($b, $max_intensity)
+    }
+
+    Write-Host "min intensity: $min_intensity"
+    Write-Host "max intensity: $max_intensity"
+
+    ShowDuration $t0
+    return $min_intensity, $max_intensity
+}
+
+function NormalizeDiffs {
+    param (
+        [string]$work_dir,
+        [int]$number_of_frames,
+        [int]$num_cores,
+        [int]$imagick_threads,
+        [int]$min_intensity,
+        [int]$max_intensity
+    )
+
+    Write-Host "normalizing diffs..."
+    $t0 = Get-Date
+    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
+
+    1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
+        $id = "{0:d6}" -f $_
+        $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
+        magick -limit thread $using:imagick_threads "${frame}_diff.png" -level "$using:min_intensity,$using:max_intensity" "${frame}_norm.png"
+
+        $q = $using:frames_completed
+        $q.Enqueue(1)
+        [int] $percent = 100 * $q.Count / $using:number_of_frames
+        Write-Progress -Activity "normalizing diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
     }
 
     ShowDuration $t0
@@ -145,7 +212,7 @@ function RenderOutputVideo {
     Write-Host "rendering output video..."
 
     $t0 = Get-Date
-    ffmpeg -v error -framerate 60000/1001 -i "$work_dir\%06d_d.png" -c:v libx264 -crf 18 -preset veryfast "$output_video"
+    ffmpeg -v error -framerate 60000/1001 -i "$work_dir\%06d_norm.png" -c:v libx264 -crf 18 -preset veryfast "$output_video"
     ShowDuration $t0
 }
 
@@ -167,8 +234,12 @@ InputVideoMustExist $VIDEO1
 InputVideoMustExist $VIDEO2
 OutputVideoMustNotExist $OUTPUT_VIDEO
 $work_dir = CreateTempWorkDirectory
+
 ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
 $number_of_frames = CountNumberOfFrames $work_dir
 GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
+$min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
+NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
 RenderOutputVideo $work_dir $OUTPUT_VIDEO
+
 DeleteTempWorkDirectory $work_dir
