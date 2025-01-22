@@ -36,7 +36,7 @@ function GetNumberOfCoresAndThreads {
     $imagick_threads = 2
     $ffmpeg_threads = [int]($num_cores / 2)
     Write-Host "CPU cores: $num_cores"
-    Write-Host "IMagick threads: $imagick_threads"
+    Write-Host "ImageMagick threads: $imagick_threads"
     Write-Host "FFmpeg threads: $ffmpeg_threads"
 
     return $num_cores, $imagick_threads, $ffmpeg_threads
