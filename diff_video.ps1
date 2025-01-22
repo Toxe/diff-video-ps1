@@ -94,19 +94,12 @@ function ExtractFrames {
         ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
     }
 
-    ShowDuration $t0
-}
-
-function CountNumberOfFrames {
-    param (
-        [string]$work_dir
-    )
-
     $video1_number_of_frames = (Get-ChildItem -Path "$work_dir" -Name -File -Filter *_a.png).Length
     $video2_number_of_frames = (Get-ChildItem -Path "$work_dir" -Name -File -Filter *_b.png).Length
     Write-Host "video 1 frames: $video1_number_of_frames"
     Write-Host "video 2 frames: $video2_number_of_frames"
 
+    ShowDuration $t0
     return $video1_number_of_frames
 }
 
@@ -235,8 +228,7 @@ InputVideoMustExist $VIDEO2
 OutputVideoMustNotExist $OUTPUT_VIDEO
 $work_dir = CreateTempWorkDirectory
 
-ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
-$number_of_frames = CountNumberOfFrames $work_dir
+$number_of_frames = ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
 GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
 $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
 NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
