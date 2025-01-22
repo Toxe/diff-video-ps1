@@ -2,6 +2,36 @@
 
 $PSStyle.Progress.View = "Classic"
 
+function WithProgress {
+    param (
+        [Parameter(ValueFromPipeline)] $input,
+        [Parameter(Mandatory)] [string]$Activity,
+        [Parameter(Mandatory)] [int]$Max,
+        [ScriptBlock]$Begin = { },
+        [ScriptBlock]$Process = { },
+        [ScriptBlock]$End = { }
+    )
+
+    begin {
+        $completed = 0
+        & $Begin
+        Write-Progress -Activity $Activity -Status "$completed/$Max completed" -PercentComplete 0
+    }
+
+    process {
+        $completed += 1
+        & $Process $input
+
+        [int] $percent = 100.0 * $completed / $Max
+        Write-Progress -Activity $Activity -Status "$completed/$Max completed" -PercentComplete $percent
+    }
+
+    end {
+        & $End
+        Write-Progress -Activity $Activity -Completed
+    }
+}
+
 function Die {
     param (
         [int]$exitcode,
@@ -113,18 +143,13 @@ function GenerateDiffs {
 
     Write-Host "generating diffs..."
     $t0 = Get-Date
-    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
 
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
         $id = "{0:d6}" -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_d.png"
-
-        $q = $using:frames_completed
-        $q.Enqueue(1)
-        [int] $percent = 100 * $q.Count / $using:number_of_frames
-        Write-Progress -Activity "generating diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
-    }
+        $_
+    } | WithProgress -Activity "generating diffs..." -Max $number_of_frames
 
     ShowDuration $t0
 }
@@ -139,18 +164,13 @@ function CalculateMinMaxIntensity {
 
     Write-Host "calculating min/max intensity..."
     $t0 = Get-Date
-    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
 
     $lines = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
         $id = "{0:d6}" -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-        magick identify -limit thread $using:imagick_threads -format "%[min] %[max]\n" "${frame}_d.png"
-
-        $q = $using:frames_completed
-        $q.Enqueue(1)
-        [int] $percent = 100 * $q.Count / $using:number_of_frames
-        Write-Progress -Activity "calculating min/max intensity..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
-    }
+        $output = magick identify -limit thread $using:imagick_threads -format "%[min] %[max]\n" "${frame}_d.png"
+        $output
+    } | WithProgress -Activity "calculating min/max intensity..." -Max $number_of_frames -Process { $_ }
 
     $min_intensity = [int]::MaxValue
     $max_intensity = [int]::MinValue
@@ -180,18 +200,13 @@ function NormalizeDiffs {
 
     Write-Host "normalizing diffs..."
     $t0 = Get-Date
-    $frames_completed = [System.Collections.Concurrent.ConcurrentQueue[int]]::new()
 
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
         $id = "{0:d6}" -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_d.png" -level "$using:min_intensity,$using:max_intensity" "${frame}_n.png"
-
-        $q = $using:frames_completed
-        $q.Enqueue(1)
-        [int] $percent = 100 * $q.Count / $using:number_of_frames
-        Write-Progress -Activity "normalizing diffs..." -Status "$($q.Count)/$using:number_of_frames frames completed" -PercentComplete $percent
-    }
+        $_
+    } | WithProgress -Activity "normalizing diffs..." -Max $number_of_frames
 
     ShowDuration $t0
 }
