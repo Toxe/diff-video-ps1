@@ -1,13 +1,13 @@
 # & .\diff_video.ps1 video1 video2 output.mp4
 
-$PSStyle.Progress.View = "Classic"
+$PSStyle.Progress.View = 'Classic'
 
 function WithProgress {
     param (
         [Parameter(ValueFromPipeline)] $input,
         [Parameter(Mandatory)] [string]$Activity,
         [Parameter(Mandatory)] [int]$MaxCounter,
-        [string]$StatusText = "completed",
+        [string]$StatusText = 'completed',
         [ScriptBlock]$Begin = { },
         [ScriptBlock]$Process = { },
         [ScriptBlock]$End = { },
@@ -21,7 +21,7 @@ function WithProgress {
         & $Begin
 
         $percent = & $PercentComplete
-        $status = "{0}/{1} {2} ({3}%)" -f $counter, $MaxCounter, $StatusText, $percent
+        $status = '{0}/{1} {2} ({3}%)' -f $counter, $MaxCounter, $StatusText, $percent
         Write-Progress -Activity $Activity -Status $status -PercentComplete $percent
     }
 
@@ -31,7 +31,7 @@ function WithProgress {
         & $Process $input
 
         $percent = & $PercentComplete
-        $status = "{0}/{1} {2} ({3}%)" -f $counter, $MaxCounter, $StatusText, $percent
+        $status = '{0}/{1} {2} ({3}%)' -f $counter, $MaxCounter, $StatusText, $percent
         Write-Progress -Activity $Activity -Status $status -PercentComplete $percent
     }
 
@@ -56,8 +56,8 @@ function ShowDuration {
         [datetime]$t
     )
 
-    Write-Host ("--> {0:n3} seconds" -f (((Get-Date) - $t).TotalSeconds))
-    Write-Host ""
+    Write-Host ('--> {0:n3} seconds' -f (((Get-Date) - $t).TotalSeconds))
+    Write-Host ''
 }
 
 function EvalArgs {
@@ -65,7 +65,7 @@ function EvalArgs {
         [array]$params
     )
 
-    if ($params.Count -lt 3) { Die 1 "Missing arguments" }
+    if ($params.Count -lt 3) { Die 1 'Missing arguments' }
 
     return $params[0], $params[1], $params[2]
 }
@@ -117,13 +117,13 @@ function ExtractFrames {
         [int]$ffmpeg_threads
     )
 
-    Write-Host ""
-    Write-Host "extracting frames..."
+    Write-Host ''
+    Write-Host 'extracting frames...'
     $t0 = Get-Date
 
     $videos = @(
-        @($video1, "a"),
-        @($video2, "b")
+        @($video1, 'a'),
+        @($video2, 'b')
     )
 
     $videos | ForEach-Object -Parallel {
@@ -150,15 +150,15 @@ function GenerateDiffs {
         [int]$imagick_threads
     )
 
-    Write-Host "generating diffs..."
+    Write-Host 'generating diffs...'
     $t0 = Get-Date
 
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-        $id = "{0:d6}" -f $_
+        $id = '{0:d6}' -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_d.png"
         $_
-    } | WithProgress -Activity "generating diffs..." -MaxCounter $number_of_frames
+    } | WithProgress -Activity 'generating diffs...' -MaxCounter $number_of_frames
 
     ShowDuration $t0
 }
@@ -171,21 +171,21 @@ function CalculateMinMaxIntensity {
         [int]$imagick_threads
     )
 
-    Write-Host "calculating min/max intensity..."
+    Write-Host 'calculating min/max intensity...'
     $t0 = Get-Date
 
     $lines = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-        $id = "{0:d6}" -f $_
+        $id = '{0:d6}' -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-        $output = magick identify -limit thread $using:imagick_threads -format "%[min] %[max]\n" "${frame}_d.png"
+        $output = magick identify -limit thread $using:imagick_threads -format '%[min] %[max]\n' "${frame}_d.png"
         $output
-    } | WithProgress -Activity "calculating min/max intensity..." -MaxCounter $number_of_frames -Process { $_ }
+    } | WithProgress -Activity 'calculating min/max intensity...' -MaxCounter $number_of_frames -Process { $_ }
 
     $min_intensity = [int]::MaxValue
     $max_intensity = [int]::MinValue
 
     $lines | ForEach-Object {
-        $a, $b = $_ -split " "
+        $a, $b = $_ -split ' '
         $min_intensity = [math]::min($a, $min_intensity)
         $max_intensity = [math]::max($b, $max_intensity)
     }
@@ -207,15 +207,15 @@ function NormalizeDiffs {
         [int]$max_intensity
     )
 
-    Write-Host "normalizing diffs..."
+    Write-Host 'normalizing diffs...'
     $t0 = Get-Date
 
     1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-        $id = "{0:d6}" -f $_
+        $id = '{0:d6}' -f $_
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_d.png" -level "$using:min_intensity,$using:max_intensity" "${frame}_n.png"
         $_
-    } | WithProgress -Activity "normalizing diffs..." -MaxCounter $number_of_frames
+    } | WithProgress -Activity 'normalizing diffs...' -MaxCounter $number_of_frames
 
     ShowDuration $t0
 }
@@ -227,13 +227,13 @@ function RenderOutputVideo {
         [int]$number_of_frames
     )
 
-    Write-Host "rendering output video..."
+    Write-Host 'rendering output video...'
     $t0 = Get-Date
 
-    ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$work_dir\%06d_n.png" -vf "colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0" -c:v libx264 -crf 18 -preset veryfast "$output_video" |
-        Where-Object { $_ -match "frame=(\d+)" } |
+    ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$work_dir\%06d_n.png" -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast "$output_video" |
+        Where-Object { $_ -match 'frame=(\d+)' } |
         ForEach-Object { $Matches[1] } |
-        WithProgress -Activity "rendering output video..." -MaxCounter $number_of_frames -StatusText "frames" -UpdateCounter { $_ }
+        WithProgress -Activity 'rendering output video...' -MaxCounter $number_of_frames -StatusText 'frames' -UpdateCounter { $_ }
 
     ShowDuration $t0
 }
@@ -243,7 +243,7 @@ function DeleteTempWorkDirectory {
         [string]$work_dir
     )
 
-    Write-Host "cleaning up..."
+    Write-Host 'cleaning up...'
 
     $t0 = Get-Date
     Remove-Item -Path "$work_dir" -Recurse
