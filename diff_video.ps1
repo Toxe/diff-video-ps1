@@ -6,24 +6,33 @@ function WithProgress {
     param (
         [Parameter(ValueFromPipeline)] $input,
         [Parameter(Mandatory)] [string]$Activity,
-        [Parameter(Mandatory)] [int]$Max,
+        [Parameter(Mandatory)] [int]$MaxCounter,
+        [string]$StatusText = "completed",
         [ScriptBlock]$Begin = { },
         [ScriptBlock]$Process = { },
-        [ScriptBlock]$End = { }
+        [ScriptBlock]$End = { },
+        [ScriptBlock]$PercentComplete = { [math]::Round(100.0 * $counter / $MaxCounter) },
+        [ScriptBlock]$UpdateCounter = { $counter + 1 }
     )
 
     begin {
-        $completed = 0
+        $counter = 0
+
         & $Begin
-        Write-Progress -Activity $Activity -Status "$completed/$Max completed" -PercentComplete 0
+
+        $percent = & $PercentComplete
+        $status = "{0}/{1} {2} ({3}%)" -f $counter, $MaxCounter, $StatusText, $percent
+        Write-Progress -Activity $Activity -Status $status -PercentComplete $percent
     }
 
     process {
-        $completed += 1
+        $counter = & $UpdateCounter
+
         & $Process $input
 
-        [int] $percent = 100.0 * $completed / $Max
-        Write-Progress -Activity $Activity -Status "$completed/$Max completed" -PercentComplete $percent
+        $percent = & $PercentComplete
+        $status = "{0}/{1} {2} ({3}%)" -f $counter, $MaxCounter, $StatusText, $percent
+        Write-Progress -Activity $Activity -Status $status -PercentComplete $percent
     }
 
     end {
@@ -149,7 +158,7 @@ function GenerateDiffs {
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_d.png"
         $_
-    } | WithProgress -Activity "generating diffs..." -Max $number_of_frames
+    } | WithProgress -Activity "generating diffs..." -MaxCounter $number_of_frames
 
     ShowDuration $t0
 }
@@ -170,7 +179,7 @@ function CalculateMinMaxIntensity {
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         $output = magick identify -limit thread $using:imagick_threads -format "%[min] %[max]\n" "${frame}_d.png"
         $output
-    } | WithProgress -Activity "calculating min/max intensity..." -Max $number_of_frames -Process { $_ }
+    } | WithProgress -Activity "calculating min/max intensity..." -MaxCounter $number_of_frames -Process { $_ }
 
     $min_intensity = [int]::MaxValue
     $max_intensity = [int]::MinValue
@@ -206,7 +215,7 @@ function NormalizeDiffs {
         $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
         magick -limit thread $using:imagick_threads "${frame}_d.png" -level "$using:min_intensity,$using:max_intensity" "${frame}_n.png"
         $_
-    } | WithProgress -Activity "normalizing diffs..." -Max $number_of_frames
+    } | WithProgress -Activity "normalizing diffs..." -MaxCounter $number_of_frames
 
     ShowDuration $t0
 }
@@ -214,13 +223,18 @@ function NormalizeDiffs {
 function RenderOutputVideo {
     param (
         [string]$work_dir,
-        [string]$output_video
+        [string]$output_video,
+        [int]$number_of_frames
     )
 
     Write-Host "rendering output video..."
-
     $t0 = Get-Date
-    ffmpeg -v error -framerate 60000/1001 -i "$work_dir\%06d_n.png" -vf "colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0" -c:v libx264 -crf 18 -preset veryfast "$output_video"
+
+    ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$work_dir\%06d_n.png" -vf "colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0" -c:v libx264 -crf 18 -preset veryfast "$output_video" |
+        Where-Object { $_ -match "frame=(\d+)" } |
+        ForEach-Object { $Matches[1] } |
+        WithProgress -Activity "rendering output video..." -MaxCounter $number_of_frames -StatusText "frames" -UpdateCounter { $_ }
+
     ShowDuration $t0
 }
 
@@ -247,6 +261,6 @@ $number_of_frames = ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
 GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
 $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
 NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
-RenderOutputVideo $work_dir $OUTPUT_VIDEO
+RenderOutputVideo $work_dir $OUTPUT_VIDEO $number_of_frames
 
 DeleteTempWorkDirectory $work_dir
