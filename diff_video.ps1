@@ -190,7 +190,29 @@ function ExtractFrames {
         Write-Host "video 1 frames: $video1_number_of_frames"
         Write-Host "video 2 frames: $video2_number_of_frames"
 
-        return $video1_number_of_frames
+        $offset = [math]::Abs($video1_number_of_frames - $video2_number_of_frames)
+
+        if ($offset -ne 0) {
+            # The videos have different numbers of frames, so remove the excess frames. If the difference is for example 23:
+            # - delete frames 1 to 23
+            # - rename frame 24 to 1, 25 to 2 etc.
+            Write-Warning "The input videos don't have the same number of frames!"
+
+            $num_frames = [math]::Max($video1_number_of_frames, $video2_number_of_frames)
+            $postfix = if ($video1_number_of_frames -gt $video2_number_of_frames) { 'a' } else { 'b' }
+
+            for ($i = 1; $i -le $num_frames; ++$i) {
+                $frame = BuildFrameFullPath "$work_dir" $postfix $i
+
+                if ($i -gt $offset) {
+                    Rename-Item -Path "$frame" -NewName "$(BuildFrameBasename $postfix ($i - $offset))"
+                } else {
+                    Remove-Item -Path "$frame"
+                }
+            }
+        }
+
+        return [math]::Min($video1_number_of_frames, $video2_number_of_frames)
     }
 }
 
