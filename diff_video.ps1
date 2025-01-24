@@ -301,15 +301,17 @@ function RenderVideoDiff {
 
 function RenderVideoMontage {
     param (
-        [string]$video1,
-        [string]$video2,
-        [string]$output_video_diff,
+        [string]$work_dir,
         [string]$output_video_montage,
         [int]$number_of_frames
     )
 
     WithDuration 'rendering montage video...' {
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -i "$video1" -i "$video2" -i "$output_video_diff" -filter_complex '[0:v][1:v]vstack[left]; [2:v]scale=iw:2*ih[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
+        $frames_a = BuildFramesFilenameTemplate "$work_dir" 'a'
+        $frames_b = BuildFramesFilenameTemplate "$work_dir" 'b'
+        $frames_n = BuildFramesFilenameTemplate "$work_dir" 'n'
+
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]scale=iw:2*ih[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
             Where-Object { $_ -match 'frame=(\d+)' } |
             ForEach-Object { $Matches[1] } |
             WithProgress -Activity 'rendering montage video...' -MaxCounter $number_of_frames -StatusText 'frames' -UpdateCounter { $_ }
@@ -339,6 +341,6 @@ GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
 $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
 NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
 RenderVideoDiff $work_dir $OUTPUT_VIDEO_DIFF $number_of_frames
-RenderVideoMontage $VIDEO1 $VIDEO2 $OUTPUT_VIDEO_DIFF $OUTPUT_VIDEO_MONTAGE $number_of_frames
+RenderVideoMontage $work_dir $OUTPUT_VIDEO_MONTAGE $number_of_frames
 
 DeleteTempWorkDirectory $work_dir
