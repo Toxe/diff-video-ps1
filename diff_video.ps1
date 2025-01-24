@@ -80,6 +80,34 @@ function AddPostfixToFilename {
     return [System.IO.Path]::Combine($dir, '{0}_{1}{2}' -f ($basename, $postfix, $extension))
 }
 
+function BuildFramesFilenameTemplate {
+    param (
+        [string]$dir,
+        [string]$postfix
+    )
+
+    return '{0}\%06d_{1}.png' -f ($dir, $postfix)
+}
+
+function BuildFrameBasename {
+    param (
+        [string]$postfix,
+        [int]$id
+    )
+
+    return '{0:d6}_{1}.png' -f ($id, $postfix)
+}
+
+function BuildFrameFullPath {
+    param (
+        [string]$dir,
+        [string]$postfix,
+        [int]$id
+    )
+
+    return Join-Path -Path "$dir" -ChildPath (& BuildFrameBasename $postfix $id)
+}
+
 function EvalArgs {
     param (
         [array]$params
@@ -142,15 +170,18 @@ function ExtractFrames {
     Write-Host ''
 
     WithDuration 'extracting frames...' {
+        $func_BuildFramesFilenameTemplate = ${function:BuildFramesFilenameTemplate}.ToString()
+
         $videos = @(
             @($video1, 'a'),
             @($video2, 'b')
         )
 
         $videos | ForEach-Object -Parallel {
+            ${function:BuildFramesFilenameTemplate} = $using:func_BuildFramesFilenameTemplate
+
             $video = $_[0]
-            $postfix = $_[1]
-            $frames = Join-Path -Path "${using:work_dir}" -ChildPath "%06d_${postfix}.png"
+            $frames = BuildFramesFilenameTemplate "${using:work_dir}" $_[1]
             ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
         }
 
@@ -172,10 +203,17 @@ function GenerateDiffs {
     )
 
     WithDuration 'generating diffs...' {
+        $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
+        $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+
         1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-            $id = '{0:d6}' -f $_
-            $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-            magick -limit thread $using:imagick_threads "${frame}_a.png" "${frame}_b.png" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame}_d.png"
+            ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
+            ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+
+            $frame_a = BuildFrameFullPath "${using:work_dir}" 'a' $_
+            $frame_b = BuildFrameFullPath "${using:work_dir}" 'b' $_
+            $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
+            magick -limit thread $using:imagick_threads "${frame_a}" "${frame_b}" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame_d}"
             $_
         } | WithProgress -Activity 'generating diffs...' -MaxCounter $number_of_frames
     }
@@ -190,10 +228,15 @@ function CalculateMinMaxIntensity {
     )
 
     WithDuration 'calculating min/max intensity...' {
+        $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
+        $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+
         $lines = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-            $id = '{0:d6}' -f $_
-            $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-            $output = magick identify -limit thread $using:imagick_threads -format '%[min] %[max]\n' "${frame}_d.png"
+            ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
+            ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+
+            $frame = BuildFrameFullPath "${using:work_dir}" 'd' $_
+            $output = magick identify -limit thread $using:imagick_threads -format '%[min] %[max]\n' "${frame}"
             $output
         } | WithProgress -Activity 'calculating min/max intensity...' -MaxCounter $number_of_frames -Process { $_ }
 
@@ -224,10 +267,16 @@ function NormalizeDiffs {
     )
 
     WithDuration 'normalizing diffs...' {
+        $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
+        $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+
         1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
-            $id = '{0:d6}' -f $_
-            $frame = Join-Path -Path "${using:work_dir}" -ChildPath "${id}"
-            magick -limit thread $using:imagick_threads "${frame}_d.png" -level "$using:min_intensity,$using:max_intensity" "${frame}_n.png"
+            ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
+            ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+
+            $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
+            $frame_n = BuildFrameFullPath "${using:work_dir}" 'n' $_
+            magick -limit thread $using:imagick_threads "${frame_d}" -level "$using:min_intensity,$using:max_intensity" "${frame_n}"
             $_
         } | WithProgress -Activity 'normalizing diffs...' -MaxCounter $number_of_frames
     }
@@ -241,7 +290,9 @@ function RenderVideoDiff {
     )
 
     WithDuration 'rendering diff video...' {
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$work_dir\%06d_n.png" -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff" |
+        $frames_n = BuildFramesFilenameTemplate "$work_dir" 'n'
+
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_n" -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff" |
             Where-Object { $_ -match 'frame=(\d+)' } |
             ForEach-Object { $Matches[1] } |
             WithProgress -Activity 'rendering diff video...' -MaxCounter $number_of_frames -StatusText 'frames' -UpdateCounter { $_ }
