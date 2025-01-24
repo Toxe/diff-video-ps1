@@ -333,7 +333,7 @@ function RenderVideoMontage {
         $frames_b = BuildFramesFilenameTemplate "$work_dir" 'b'
         $frames_n = BuildFramesFilenameTemplate "$work_dir" 'n'
 
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]scale=iw:2*ih[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
             Where-Object { $_ -match 'frame=(\d+)' } |
             ForEach-Object { $Matches[1] } |
             WithProgress -Activity 'rendering montage video...' -MaxCounter $number_of_frames -StatusText 'frames' -UpdateCounter { $_ }
