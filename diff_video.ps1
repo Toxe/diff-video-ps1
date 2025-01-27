@@ -137,7 +137,10 @@ function InputVideoMustExist {
         [int]$id
     )
 
-    if (-Not (Test-Path $video)) { Die 1 "Video $id not found: $video" }
+    if (-Not (Test-Path $video)) {
+        Die 1 "Video $id not found: $video"
+    }
+
     Write-Host "input video ${id}: $video"
 }
 
@@ -147,8 +150,22 @@ function OutputVideoMustNotExist {
         [string]$desc
     )
 
-    if (Test-Path $video) { Die 2 "Output video ($desc) already exists: $video" }
+    if (Test-Path $video) {
+        Die 2 "Output video ($desc) already exists: $video"
+    }
+
     Write-Host "output video ($desc): $video"
+}
+
+function OutputVideoMustBeMP4 {
+    param (
+        [string]$video,
+        [string]$desc
+    )
+
+    if ([System.IO.Path]::GetExtension($video) -ne '.mp4') {
+        Die 3 "Output video ($desc) must be an '.mp4' file: $video"
+    }
 }
 
 function CreateTempWorkDirectory {
@@ -361,6 +378,8 @@ function Main {
     InputVideoMustExist $Video2 2
     OutputVideoMustNotExist $Output 'diff'
     OutputVideoMustNotExist $Montage 'montage'
+    OutputVideoMustBeMP4 $Output 'diff'
+    OutputVideoMustBeMP4 $Montage 'montage'
     $work_dir = CreateTempWorkDirectory
 
     $number_of_frames = ExtractFrames $work_dir $Video1 $Video2 $ffmpeg_threads
