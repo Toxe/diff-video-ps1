@@ -105,7 +105,16 @@ function BuildFramesFilenameTemplate {
         [string]$postfix
     )
 
-    return '{0}\%06d_{1}.png' -f ($dir, $postfix)
+    return Join-Path -Path "$dir" -ChildPath ('%06d_{0}.png' -f $postfix)
+}
+
+function BuildAllFramesGlob {
+    param (
+        [string]$dir,
+        [string]$postfix
+    )
+
+    return Join-Path -Path "$dir" -ChildPath ('\*_{0}.png' -f $postfix)
 }
 
 function BuildFrameBasename {
@@ -232,8 +241,9 @@ function ExtractFrames {
             ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
         }
 
-        $video1_number_of_frames = (Get-ChildItem -Path "$work_dir" -Name -File -Filter *_a.png).Length
-        $video2_number_of_frames = (Get-ChildItem -Path "$work_dir" -Name -File -Filter *_b.png).Length
+        # count number of extracted frames
+        $video1_number_of_frames = (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" 'a') -Name -File).Length
+        $video2_number_of_frames = (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" 'b') -Name -File).Length
         Write-Host "video 1 frames: $video1_number_of_frames"
         Write-Host "video 2 frames: $video2_number_of_frames"
 
