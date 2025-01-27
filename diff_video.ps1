@@ -380,7 +380,7 @@ function DeleteWorkDirectory {
         [string]$work_dir
     )
 
-    WithDuration 'cleaning up...' {
+    WithDuration 'deleting work directory...' {
         Remove-Item -Path "$work_dir" -Recurse
     }
 }
