@@ -1,7 +1,5 @@
 # & .\diff_video.ps1 video1 video2 output.mp4
 
-$PSStyle.Progress.View = 'Classic'
-
 function WithDuration {
     param (
         [string]$label,
@@ -350,19 +348,25 @@ function DeleteTempWorkDirectory {
     }
 }
 
-$VIDEO1, $VIDEO2, $OUTPUT_VIDEO_DIFF, $OUTPUT_VIDEO_MONTAGE = EvalArgs $args
-$num_cores, $imagick_threads, $ffmpeg_threads = GetNumberOfCoresAndThreads
-InputVideoMustExist $VIDEO1 1
-InputVideoMustExist $VIDEO2 2
-OutputVideoMustNotExist $OUTPUT_VIDEO_DIFF 'diff'
-OutputVideoMustNotExist $OUTPUT_VIDEO_MONTAGE 'montage'
-$work_dir = CreateTempWorkDirectory
+function Main {
+    $PSStyle.Progress.View = 'Classic'
 
-$number_of_frames = ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
-GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
-$min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
-NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
-RenderVideoDiff $work_dir $OUTPUT_VIDEO_DIFF $number_of_frames
-RenderVideoMontage $work_dir $OUTPUT_VIDEO_MONTAGE $number_of_frames
+    $VIDEO1, $VIDEO2, $OUTPUT_VIDEO_DIFF, $OUTPUT_VIDEO_MONTAGE = EvalArgs $Script:args
+    $num_cores, $imagick_threads, $ffmpeg_threads = GetNumberOfCoresAndThreads
+    InputVideoMustExist $VIDEO1 1
+    InputVideoMustExist $VIDEO2 2
+    OutputVideoMustNotExist $OUTPUT_VIDEO_DIFF 'diff'
+    OutputVideoMustNotExist $OUTPUT_VIDEO_MONTAGE 'montage'
+    $work_dir = CreateTempWorkDirectory
 
-DeleteTempWorkDirectory $work_dir
+    $number_of_frames = ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
+    GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
+    $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
+    NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
+    RenderVideoDiff $work_dir $OUTPUT_VIDEO_DIFF $number_of_frames
+    RenderVideoMontage $work_dir $OUTPUT_VIDEO_MONTAGE $number_of_frames
+
+    DeleteTempWorkDirectory $work_dir
+}
+
+Main
