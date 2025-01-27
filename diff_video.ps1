@@ -269,6 +269,10 @@ function ExtractFrames {
             }
         }
 
+        # set modification time of all extracted frames to the one of their corresponding video
+        Set-ItemProperty $(BuildAllFramesGlob "$work_dir" 'a') -Name LastWriteTime -Value $(Get-ItemPropertyValue "$video1" -Name LastWriteTime)
+        Set-ItemProperty $(BuildAllFramesGlob "$work_dir" 'b') -Name LastWriteTime -Value $(Get-ItemPropertyValue "$video2" -Name LastWriteTime)
+
         return [math]::Min($video1_number_of_frames, $video2_number_of_frames)
     }
 }
@@ -292,7 +296,22 @@ function GenerateDiffs {
             $frame_a = BuildFrameFullPath "${using:work_dir}" 'a' $_
             $frame_b = BuildFrameFullPath "${using:work_dir}" 'b' $_
             $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
-            magick -limit thread $using:imagick_threads "${frame_a}" "${frame_b}" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame_d}"
+
+            # last modification time of each frame
+            $mtime_a = Get-ItemPropertyValue "$frame_a" -Name LastWriteTime
+            $mtime_b = Get-ItemPropertyValue "$frame_b" -Name LastWriteTime
+
+            # determine the latest modification time between frames a and b
+            $mtime = [DateTime][math]::Max($mtime_a.Ticks, $mtime_b.Ticks)
+
+            # only create diff if it either doesn't exist or its modification time doesn't match $mtime
+            if ((-not (Test-Path "$frame_d")) -or ($mtime -ne $(Get-ItemPropertyValue "$frame_d" -Name LastWriteTime))) {
+                magick -limit thread $using:imagick_threads "${frame_a}" "${frame_b}" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame_d}"
+
+                # update modification time of the diff to the latest time ($mtime)
+                Set-ItemProperty $frame_d -Name LastWriteTime -Value $mtime
+            }
+
             $_
         } | WithProgress -Activity 'generating diffs...' -MaxCounter $number_of_frames
     }
