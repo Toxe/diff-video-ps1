@@ -130,6 +130,14 @@ function InitializeParameters {
     if (-not $Script:WorkDir) {
         $Script:WorkDir = BuildWorkDirName
     }
+
+    Write-Host 'Parameters:'
+    Write-Host "  Video1: $Video1"
+    Write-Host "  Video2: $Video2"
+    Write-Host "  Output: $Output"
+    Write-Host "  Montage: $Montage"
+    Write-Host "  WorkDir: $WorkDir"
+    Write-Host "  DontDeleteWorkDir: $DontDeleteWorkDir"
 }
 
 function GetNumberOfCoresAndThreads {
@@ -152,8 +160,6 @@ function InputVideoMustExist {
     if (-Not (Test-Path $video)) {
         Die 1 "Video $id not found: $video"
     }
-
-    Write-Host "input video ${id}: $video"
 }
 
 function OutputVideoMustNotExist {
@@ -165,8 +171,6 @@ function OutputVideoMustNotExist {
     if (Test-Path $video) {
         Die 2 "Output video ($desc) already exists: $video"
     }
-
-    Write-Host "output video ($desc): $video"
 }
 
 function OutputVideoMustBeMP4 {
@@ -188,8 +192,6 @@ function CreateWorkDirectory {
     if ( -not (Test-Path "$work_dir") ) {
         New-Item -Path "$work_dir" -ItemType Directory | Out-Null
     }
-
-    Write-Host "work directory: $work_dir"
 }
 
 function ExtractFrames {
