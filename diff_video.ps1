@@ -1,5 +1,13 @@
 # & .\diff_video.ps1 video1 video2 output.mp4
 
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory)] [string]$Video1,
+    [Parameter(Mandatory)] [string]$Video2,
+    [Parameter(Mandatory)] [string]$Output,
+    [string]$Montage
+)
+
 function WithDuration {
     param (
         [string]$label,
@@ -106,14 +114,10 @@ function BuildFrameFullPath {
     return Join-Path -Path "$dir" -ChildPath (& BuildFrameBasename $postfix $id)
 }
 
-function EvalArgs {
-    param (
-        [array]$params
-    )
-
-    if ($params.Count -lt 3) { Die 1 'Missing arguments' }
-
-    return $params[0], $params[1], $params[2], (AddPostfixToFilename $params[2] 'montage')
+function InitializeParameters {
+    if (-not $Script:Montage) {
+        $Script:Montage = AddPostfixToFilename $Output 'montage'
+    }
 }
 
 function GetNumberOfCoresAndThreads {
@@ -133,7 +137,7 @@ function InputVideoMustExist {
         [int]$id
     )
 
-    if (-Not (Test-Path $video)) { Die 2 "Video $id not found: $video" }
+    if (-Not (Test-Path $video)) { Die 1 "Video $id not found: $video" }
     Write-Host "input video ${id}: $video"
 }
 
@@ -143,7 +147,7 @@ function OutputVideoMustNotExist {
         [string]$desc
     )
 
-    if (Test-Path $video) { Die 3 "Output video ($desc) already exists: $video" }
+    if (Test-Path $video) { Die 2 "Output video ($desc) already exists: $video" }
     Write-Host "output video ($desc): $video"
 }
 
@@ -351,20 +355,20 @@ function DeleteTempWorkDirectory {
 function Main {
     $PSStyle.Progress.View = 'Classic'
 
-    $VIDEO1, $VIDEO2, $OUTPUT_VIDEO_DIFF, $OUTPUT_VIDEO_MONTAGE = EvalArgs $Script:args
+    InitializeParameters
     $num_cores, $imagick_threads, $ffmpeg_threads = GetNumberOfCoresAndThreads
-    InputVideoMustExist $VIDEO1 1
-    InputVideoMustExist $VIDEO2 2
-    OutputVideoMustNotExist $OUTPUT_VIDEO_DIFF 'diff'
-    OutputVideoMustNotExist $OUTPUT_VIDEO_MONTAGE 'montage'
+    InputVideoMustExist $Video1 1
+    InputVideoMustExist $Video2 2
+    OutputVideoMustNotExist $Output 'diff'
+    OutputVideoMustNotExist $Montage 'montage'
     $work_dir = CreateTempWorkDirectory
 
-    $number_of_frames = ExtractFrames $work_dir $VIDEO1 $VIDEO2 $ffmpeg_threads
+    $number_of_frames = ExtractFrames $work_dir $Video1 $Video2 $ffmpeg_threads
     GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
     $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
     NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
-    RenderVideoDiff $work_dir $OUTPUT_VIDEO_DIFF $number_of_frames
-    RenderVideoMontage $work_dir $OUTPUT_VIDEO_MONTAGE $number_of_frames
+    RenderVideoDiff $work_dir $Output $number_of_frames
+    RenderVideoMontage $work_dir $Montage $number_of_frames
 
     DeleteTempWorkDirectory $work_dir
 }
