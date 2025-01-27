@@ -132,7 +132,9 @@ function InitializeParameters {
         $Script:Montage = AddPostfixToFilename $Output 'montage'
     }
 
-    if (-not $Script:WorkDir) {
+    if ($Script:WorkDir) {
+        $Script:DontDeleteWorkDir = $true
+    } else {
         $Script:WorkDir = BuildWorkDirName
     }
 
