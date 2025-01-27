@@ -7,7 +7,10 @@ param (
     [Parameter(Mandatory)] [string]$Output,
     [string]$Montage,
     [string]$WorkDir,
-    [switch]$DontDeleteWorkDir
+    [switch]$DontDeleteWorkDir,
+    [int]$Jobs,
+    [int]$FFmpegThreads,
+    [int]$IMagickThreads
 )
 
 function WithDuration {
@@ -131,6 +134,18 @@ function InitializeParameters {
         $Script:WorkDir = BuildWorkDirName
     }
 
+    if ($Script:Jobs -le 0) {
+        $Script:Jobs = [Environment]::ProcessorCount
+    }
+
+    if ($Script:FFmpegThreads -le 0) {
+        $Script:FFmpegThreads = [int]([Environment]::ProcessorCount / 2)
+    }
+
+    if ($Script:IMagickThreads -le 0) {
+        $Script:IMagickThreads = 2
+    }
+
     Write-Host 'Parameters:'
     Write-Host "  Video1: $Video1"
     Write-Host "  Video2: $Video2"
@@ -138,17 +153,9 @@ function InitializeParameters {
     Write-Host "  Montage: $Montage"
     Write-Host "  WorkDir: $WorkDir"
     Write-Host "  DontDeleteWorkDir: $DontDeleteWorkDir"
-}
-
-function GetNumberOfCoresAndThreads {
-    $num_cores = ([Environment]::ProcessorCount)
-    $imagick_threads = 2
-    $ffmpeg_threads = [int]($num_cores / 2)
-    Write-Host "CPU cores: $num_cores"
-    Write-Host "ImageMagick threads: $imagick_threads"
-    Write-Host "FFmpeg threads: $ffmpeg_threads"
-
-    return $num_cores, $imagick_threads, $ffmpeg_threads
+    Write-Host "  Jobs: $Jobs"
+    Write-Host "  FFmpegThreads: $FFmpegThreads"
+    Write-Host "  IMagickThreads: $IMagickThreads"
 }
 
 function InputVideoMustExist {
@@ -389,7 +396,6 @@ function Main {
     $PSStyle.Progress.View = 'Classic'
 
     InitializeParameters
-    $num_cores, $imagick_threads, $ffmpeg_threads = GetNumberOfCoresAndThreads
     InputVideoMustExist $Video1 1
     InputVideoMustExist $Video2 2
     OutputVideoMustNotExist $Output 'diff'
@@ -398,10 +404,10 @@ function Main {
     OutputVideoMustBeMP4 $Montage 'montage'
 
     CreateWorkDirectory $WorkDir
-    $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $ffmpeg_threads
-    GenerateDiffs $WorkDir $number_of_frames $num_cores $imagick_threads
-    $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $num_cores $imagick_threads
-    NormalizeDiffs $WorkDir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
+    $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $FFmpegThreads
+    GenerateDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads
+    $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $Jobs $IMagickThreads
+    NormalizeDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads $min_intensity $max_intensity
     RenderVideoDiff $WorkDir $Output $number_of_frames
     RenderVideoMontage $WorkDir $Montage $number_of_frames
 
