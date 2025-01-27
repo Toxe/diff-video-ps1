@@ -6,6 +6,7 @@ param (
     [Parameter(Mandatory)] [string]$Video2,
     [Parameter(Mandatory)] [string]$Output,
     [string]$Montage,
+    [string]$WorkDir,
     [switch]$DontDeleteWorkDir
 )
 
@@ -87,6 +88,12 @@ function AddPostfixToFilename {
     return [System.IO.Path]::Combine($dir, '{0}_{1}{2}' -f ($basename, $postfix, $extension))
 }
 
+function BuildWorkDirName {
+    $temp_dir = [System.IO.Path]::GetTempPath()
+    $random_name = [System.IO.Path]::GetRandomFileName()
+    return Join-Path -Path "$temp_dir" -ChildPath "$random_name"
+}
+
 function BuildFramesFilenameTemplate {
     param (
         [string]$dir,
@@ -118,6 +125,10 @@ function BuildFrameFullPath {
 function InitializeParameters {
     if (-not $Script:Montage) {
         $Script:Montage = AddPostfixToFilename $Output 'montage'
+    }
+
+    if (-not $Script:WorkDir) {
+        $Script:WorkDir = BuildWorkDirName
     }
 }
 
@@ -169,14 +180,16 @@ function OutputVideoMustBeMP4 {
     }
 }
 
-function CreateTempWorkDirectory {
-    $temp_dir = [System.IO.Path]::GetTempPath()
-    $random_name = [System.IO.Path]::GetRandomFileName()
-    $work_dir = Join-Path -Path "$temp_dir" -ChildPath "$random_name"
-    New-Item -Path "$work_dir" -ItemType Directory | Out-Null
-    Write-Host "work directory: $work_dir"
+function CreateWorkDirectory {
+    param (
+        [string]$work_dir
+    )
 
-    return $work_dir
+    if ( -not (Test-Path "$work_dir") ) {
+        New-Item -Path "$work_dir" -ItemType Directory | Out-Null
+    }
+
+    Write-Host "work directory: $work_dir"
 }
 
 function ExtractFrames {
@@ -360,7 +373,7 @@ function RenderVideoMontage {
     }
 }
 
-function DeleteTempWorkDirectory {
+function DeleteWorkDirectory {
     param (
         [string]$work_dir
     )
@@ -382,16 +395,16 @@ function Main {
     OutputVideoMustBeMP4 $Output 'diff'
     OutputVideoMustBeMP4 $Montage 'montage'
 
-    $work_dir = CreateTempWorkDirectory
-    $number_of_frames = ExtractFrames $work_dir $Video1 $Video2 $ffmpeg_threads
-    GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
-    $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
-    NormalizeDiffs $work_dir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
-    RenderVideoDiff $work_dir $Output $number_of_frames
-    RenderVideoMontage $work_dir $Montage $number_of_frames
+    CreateWorkDirectory $WorkDir
+    $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $ffmpeg_threads
+    GenerateDiffs $WorkDir $number_of_frames $num_cores $imagick_threads
+    $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $num_cores $imagick_threads
+    NormalizeDiffs $WorkDir $number_of_frames $num_cores $imagick_threads $min_intensity $max_intensity
+    RenderVideoDiff $WorkDir $Output $number_of_frames
+    RenderVideoMontage $WorkDir $Montage $number_of_frames
 
     if (-not $DontDeleteWorkDir) {
-        DeleteTempWorkDirectory $work_dir
+        DeleteWorkDirectory $WorkDir
     }
 }
 
