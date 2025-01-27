@@ -19,7 +19,7 @@ function WithDuration {
 
 function WithProgress {
     param (
-        [Parameter(ValueFromPipeline)] $input,
+        [Parameter(ValueFromPipeline)] $pipeline_input,
         [Parameter(Mandatory)] [string]$Activity,
         [Parameter(Mandatory)] [int]$MaxCounter,
         [string]$StatusText = 'completed',
@@ -43,7 +43,7 @@ function WithProgress {
     process {
         $counter = & $UpdateCounter
 
-        & $Process $input
+        & $Process $pipeline_input
 
         $percent = & $PercentComplete
         $status = '{0}/{1} {2} ({3}%)' -f $counter, $MaxCounter, $StatusText, $percent
