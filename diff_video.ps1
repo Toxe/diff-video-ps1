@@ -5,7 +5,8 @@ param (
     [Parameter(Mandatory)] [string]$Video1,
     [Parameter(Mandatory)] [string]$Video2,
     [Parameter(Mandatory)] [string]$Output,
-    [string]$Montage
+    [string]$Montage,
+    [switch]$DontDeleteWorkDir
 )
 
 function WithDuration {
@@ -380,8 +381,8 @@ function Main {
     OutputVideoMustNotExist $Montage 'montage'
     OutputVideoMustBeMP4 $Output 'diff'
     OutputVideoMustBeMP4 $Montage 'montage'
-    $work_dir = CreateTempWorkDirectory
 
+    $work_dir = CreateTempWorkDirectory
     $number_of_frames = ExtractFrames $work_dir $Video1 $Video2 $ffmpeg_threads
     GenerateDiffs $work_dir $number_of_frames $num_cores $imagick_threads
     $min_intensity, $max_intensity = CalculateMinMaxIntensity $work_dir $number_of_frames $num_cores $imagick_threads
@@ -389,7 +390,9 @@ function Main {
     RenderVideoDiff $work_dir $Output $number_of_frames
     RenderVideoMontage $work_dir $Montage $number_of_frames
 
-    DeleteTempWorkDirectory $work_dir
+    if (-not $DontDeleteWorkDir) {
+        DeleteTempWorkDirectory $work_dir
+    }
 }
 
 Main
