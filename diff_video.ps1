@@ -7,10 +7,12 @@ param (
     [Parameter(Mandatory)] [string]$Output,
     [string]$Montage,
     [string]$WorkDir,
-    [switch]$DontDeleteWorkDir,
     [int]$Jobs,
     [int]$FFmpegThreads,
-    [int]$IMagickThreads
+    [int]$IMagickThreads,
+    [switch]$DontDeleteWorkDir,
+    [switch]$NoDiffVideo,
+    [switch]$NoMontageVideo
 )
 
 function WithDuration {
@@ -152,10 +154,13 @@ function InitializeParameters {
     Write-Host "  Output: $Output"
     Write-Host "  Montage: $Montage"
     Write-Host "  WorkDir: $WorkDir"
-    Write-Host "  DontDeleteWorkDir: $DontDeleteWorkDir"
     Write-Host "  Jobs: $Jobs"
     Write-Host "  FFmpegThreads: $FFmpegThreads"
     Write-Host "  IMagickThreads: $IMagickThreads"
+    Write-Host "  DontDeleteWorkDir: $DontDeleteWorkDir"
+    Write-Host "  NoDiffVideo: $NoDiffVideo"
+    Write-Host "  NoMontageVideo: $NoMontageVideo"
+    Write-Host ''
 }
 
 function InputVideoMustExist {
@@ -208,8 +213,6 @@ function ExtractFrames {
         [string]$video2,
         [int]$ffmpeg_threads
     )
-
-    Write-Host ''
 
     WithDuration 'extracting frames...' {
         $func_BuildFramesFilenameTemplate = ${function:BuildFramesFilenameTemplate}.ToString()
@@ -408,8 +411,14 @@ function Main {
     GenerateDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads
     $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $Jobs $IMagickThreads
     NormalizeDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads $min_intensity $max_intensity
-    RenderVideoDiff $WorkDir $Output $number_of_frames
-    RenderVideoMontage $WorkDir $Montage $number_of_frames
+
+    if (-not $NoDiffVideo) {
+        RenderVideoDiff $WorkDir $Output $number_of_frames
+    }
+
+    if (-not $NoMontageVideo) {
+        RenderVideoMontage $WorkDir $Montage $number_of_frames
+    }
 
     if (-not $DontDeleteWorkDir) {
         DeleteWorkDirectory $WorkDir
