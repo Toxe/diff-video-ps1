@@ -384,28 +384,30 @@ function GenerateDiffs {
     WithDuration 'generating diffs...' {
         $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
         $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+        $func_GetFileModificationTime = ${function:GetFileModificationTime}.ToString()
+        $func_UpdateFileModificationTime = ${function:UpdateFileModificationTime}.ToString()
 
         1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
             ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
             ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+            ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
+            ${function:UpdateFileModificationTime} = $using:func_UpdateFileModificationTime
 
             $frame_a = BuildFrameFullPath "${using:work_dir}" 'a' $_
             $frame_b = BuildFrameFullPath "${using:work_dir}" 'b' $_
             $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
 
-            # last modification time of each frame
-            $mtime_a = Get-ItemPropertyValue "$frame_a" -Name LastWriteTime
-            $mtime_b = Get-ItemPropertyValue "$frame_b" -Name LastWriteTime
-
             # determine the latest modification time between frames a and b
+            $mtime_a = GetFileModificationTime "$frame_a"
+            $mtime_b = GetFileModificationTime "$frame_b"
             $mtime = [DateTime][math]::Max($mtime_a.Ticks, $mtime_b.Ticks)
 
             # only create diff if it either doesn't exist or its modification time doesn't match $mtime
-            if ((-not (Test-Path "$frame_d")) -or ($mtime -ne $(Get-ItemPropertyValue "$frame_d" -Name LastWriteTime))) {
-                magick -limit thread $using:imagick_threads "${frame_a}" "${frame_b}" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "${frame_d}"
+            if ((-not (Test-Path "$frame_d")) -or ($mtime -ne (GetFileModificationTime "$frame_d"))) {
+                magick -limit thread $using:imagick_threads "$frame_a" "$frame_b" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "$frame_d"
 
-                # update modification time of the diff to the latest time ($mtime)
-                Set-ItemProperty $frame_d -Name LastWriteTime -Value $mtime
+                # update modification time of the diff to the latest time
+                UpdateFileModificationTime "$frame_d" $mtime
             }
 
             $_
