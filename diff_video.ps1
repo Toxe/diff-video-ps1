@@ -136,6 +136,71 @@ function BuildFrameFullPath {
     return Join-Path -Path "$dir" -ChildPath (& BuildFrameBasename $postfix $id)
 }
 
+function GetFrameCountFromVideo {
+    param (
+        [string]$video
+    )
+
+    return mediainfo --Inform='Video;%FrameCount%' "$video"
+}
+
+function CountExtractedFrames {
+    param (
+        [string]$work_dir,
+        [string]$postfix
+    )
+
+    return (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -Name -File).Count
+}
+
+function AllFramesHaveModificationTime {
+    param (
+        [string]$work_dir,
+        [string]$postfix,
+        [datetime]$mtime
+    )
+
+    $files = Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -File
+    return ($files | Where-Object { $_.LastWriteTime -ne $mtime }).Count -eq 0
+}
+
+function GetFileModificationTime {
+    param (
+        [string]$filename
+    )
+
+    return Get-ItemPropertyValue "$filename" -Name LastWriteTime
+
+}
+
+function UpdateFileModificationTime {
+    param (
+        [string]$filename,
+        [datetime]$mtime
+    )
+
+    Set-ItemProperty "$filename" -Name LastWriteTime -Value $mtime
+}
+
+function UpdateModificationTimeForAllFrames {
+    param (
+        [string]$work_dir,
+        [string]$postfix,
+        [datetime]$mtime
+    )
+
+    Set-ItemProperty $(BuildAllFramesGlob "$work_dir" $postfix) -Name LastWriteTime -Value $mtime
+}
+
+function DeleteAllFrames {
+    param (
+        [string]$work_dir,
+        [string]$postfix
+    )
+
+    Remove-Item -Path $(BuildAllFramesGlob "$work_dir" $postfix)
+}
+
 function InitializeParameters {
     if (-not $Script:Montage) {
         $Script:Montage = AddPostfixToFilename $Output 'montage'
