@@ -387,7 +387,7 @@ function GenerateDiffs {
         $func_GetFileModificationTime = ${function:GetFileModificationTime}.ToString()
         $func_UpdateFileModificationTime = ${function:UpdateFileModificationTime}.ToString()
 
-        1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
+        $generated_frames = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
             ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
             ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
             ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
@@ -403,15 +403,30 @@ function GenerateDiffs {
             $mtime = [DateTime][math]::Max($mtime_a.Ticks, $mtime_b.Ticks)
 
             # only create diff if it either doesn't exist or its modification time doesn't match $mtime
+            $generated = $false
+
             if ((-not (Test-Path "$frame_d")) -or ($mtime -ne (GetFileModificationTime "$frame_d"))) {
                 magick -limit thread $using:imagick_threads "$frame_a" "$frame_b" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "$frame_d"
 
                 # update modification time of the diff to the latest time
                 UpdateFileModificationTime "$frame_d" $mtime
+                $generated = $true
             }
 
-            $_
-        } | WithProgress -Activity 'generating diffs...' -MaxCounter $number_of_frames
+            ConvertTo-Json -Compress $_, $generated
+        } | WithProgress -Activity 'generating diffs...' -MaxCounter $number_of_frames -Process {
+            $counter, $generated = ConvertFrom-Json $_
+
+            if ($generated) {
+                $counter
+            }
+        }
+
+        if ($generated_frames.Count -eq 0) {
+            Write-Host '  no diffs needed to be generated'
+        } else {
+            Write-Host "  generated $($generated_frames.Count) diffs"
+        }
     }
 }
 
