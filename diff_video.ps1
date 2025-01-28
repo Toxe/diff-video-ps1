@@ -291,26 +291,61 @@ function ExtractFrames {
     )
 
     WithDuration 'extracting frames...' {
-        $func_BuildFFmpegFramesFilenamePattern = ${function:BuildFFmpegFramesFilenamePattern}.ToString()
+        $func_AllFramesHaveModificationTime = ${function:AllFramesHaveModificationTime}.ToString()
+        $func_BuildAllFramesGlob = ${function:BuildAllFramesGlob}.ToString()
+        $func_BuildFramesFilenameTemplate = ${function:BuildFFmpegFramesFilenamePattern}.ToString()
+        $func_CountExtractedFrames = ${function:CountExtractedFrames}.ToString()
+        $func_DeleteAllFrames = ${function:DeleteAllFrames}.ToString()
+        $func_GetFileModificationTime = ${function:GetFileModificationTime}.ToString()
+        $func_GetFrameCountFromVideo = ${function:GetFrameCountFromVideo}.ToString()
+        $func_UpdateModificationTimeForAllFrames = ${function:UpdateModificationTimeForAllFrames}.ToString()
 
         $videos = @(
-            @($video1, 'a'),
-            @($video2, 'b')
+            @(1, $video1, 'a'),
+            @(2, $video2, 'b')
         )
 
         $videos | ForEach-Object -Parallel {
-            ${function:BuildFFmpegFramesFilenamePattern} = $using:func_BuildFFmpegFramesFilenamePattern
+            ${function:AllFramesHaveModificationTime} = $using:func_AllFramesHaveModificationTime
+            ${function:BuildAllFramesGlob} = $using:func_BuildAllFramesGlob
+            ${function:BuildFFmpegFramesFilenamePattern} = $using:func_BuildFramesFilenameTemplate
+            ${function:CountExtractedFrames} = $using:func_CountExtractedFrames
+            ${function:DeleteAllFrames} = $using:func_DeleteAllFrames
+            ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
+            ${function:GetFrameCountFromVideo} = $using:func_GetFrameCountFromVideo
+            ${function:UpdateModificationTimeForAllFrames} = $using:func_UpdateModificationTimeForAllFrames
 
-            $video = $_[0]
-            $frames = BuildFFmpegFramesFilenamePattern "${using:work_dir}" $_[1]
-            ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
+            $id = $_[0]
+            $video = $_[1]
+            $postfix = $_[2]
+
+            $frame_count_from_video = GetFrameCountFromVideo "$video"
+            $number_of_existing_frames = CountExtractedFrames "${using:work_dir}" $postfix
+            $mtime = GetFileModificationTime "$video"
+
+            # only extract frames if either some frame files are missing or the modification time of at least one file is outdated
+            if (($frame_count_from_video -ne $number_of_existing_frames) -or (-not (AllFramesHaveModificationTime "${using:work_dir}" $postfix $mtime))) {
+                Write-Host "  video ${id}: extracting $frame_count_from_video frames"
+
+                # delete all existing frames
+                DeleteAllFrames "${using:work_dir}" $postfix
+
+                # extract video frames
+                $frames = BuildFFmpegFramesFilenamePattern "${using:work_dir}" $postfix
+                ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
+
+                # set modification time of all extracted frames to the one of their corresponding video
+                UpdateModificationTimeForAllFrames "${using:work_dir}" $postfix $mtime
+            } else {
+                Write-Host "  video ${id}: no need to extract frames again"
+            }
         }
 
         # count number of extracted frames
-        $video1_number_of_frames = (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" 'a') -Name -File).Length
-        $video2_number_of_frames = (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" 'b') -Name -File).Length
-        Write-Host "video 1 frames: $video1_number_of_frames"
-        Write-Host "video 2 frames: $video2_number_of_frames"
+        $video1_number_of_frames = CountExtractedFrames "$work_dir" 'a'
+        $video2_number_of_frames = CountExtractedFrames "$work_dir" 'b'
+        Write-Host "  video 1 frames: $video1_number_of_frames"
+        Write-Host "  video 2 frames: $video2_number_of_frames"
 
         $offset = [math]::Abs($video1_number_of_frames - $video2_number_of_frames)
 
@@ -333,10 +368,6 @@ function ExtractFrames {
                 }
             }
         }
-
-        # set modification time of all extracted frames to the one of their corresponding video
-        Set-ItemProperty $(BuildAllFramesGlob "$work_dir" 'a') -Name LastWriteTime -Value $(Get-ItemPropertyValue "$video1" -Name LastWriteTime)
-        Set-ItemProperty $(BuildAllFramesGlob "$work_dir" 'b') -Name LastWriteTime -Value $(Get-ItemPropertyValue "$video2" -Name LastWriteTime)
 
         return [math]::Min($video1_number_of_frames, $video2_number_of_frames)
     }
