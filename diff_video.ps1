@@ -99,7 +99,7 @@ function BuildWorkDirName {
     return Join-Path -Path "$temp_dir" -ChildPath "$random_name"
 }
 
-function BuildFramesFilenameTemplate {
+function BuildFFmpegFramesFilenamePattern {
     param (
         [string]$dir,
         [string]$postfix
@@ -226,7 +226,7 @@ function ExtractFrames {
     )
 
     WithDuration 'extracting frames...' {
-        $func_BuildFramesFilenameTemplate = ${function:BuildFramesFilenameTemplate}.ToString()
+        $func_BuildFFmpegFramesFilenamePattern = ${function:BuildFFmpegFramesFilenamePattern}.ToString()
 
         $videos = @(
             @($video1, 'a'),
@@ -234,10 +234,10 @@ function ExtractFrames {
         )
 
         $videos | ForEach-Object -Parallel {
-            ${function:BuildFramesFilenameTemplate} = $using:func_BuildFramesFilenameTemplate
+            ${function:BuildFFmpegFramesFilenamePattern} = $using:func_BuildFFmpegFramesFilenamePattern
 
             $video = $_[0]
-            $frames = BuildFramesFilenameTemplate "${using:work_dir}" $_[1]
+            $frames = BuildFFmpegFramesFilenamePattern "${using:work_dir}" $_[1]
             ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
         }
 
@@ -388,7 +388,7 @@ function RenderVideoDiff {
     )
 
     WithDuration 'rendering diff video...' {
-        $frames_n = BuildFramesFilenameTemplate "$work_dir" 'n'
+        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
 
         ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_n" -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff" |
             Where-Object { $_ -match 'frame=(\d+)' } |
@@ -405,9 +405,9 @@ function RenderVideoMontage {
     )
 
     WithDuration 'rendering montage video...' {
-        $frames_a = BuildFramesFilenameTemplate "$work_dir" 'a'
-        $frames_b = BuildFramesFilenameTemplate "$work_dir" 'b'
-        $frames_n = BuildFramesFilenameTemplate "$work_dir" 'n'
+        $frames_a = BuildFFmpegFramesFilenamePattern "$work_dir" 'a'
+        $frames_b = BuildFFmpegFramesFilenamePattern "$work_dir" 'b'
+        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
 
         ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
             Where-Object { $_ -match 'frame=(\d+)' } |
