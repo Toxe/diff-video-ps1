@@ -153,17 +153,6 @@ function CountExtractedFrames {
     return (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -Name -File).Count
 }
 
-function AllFramesHaveModificationTime {
-    param (
-        [string]$work_dir,
-        [string]$postfix,
-        [datetime]$mtime
-    )
-
-    $files = Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -File
-    return ($files | Where-Object { $_.LastWriteTime -ne $mtime }).Count -eq 0
-}
-
 function GetFileModificationTime {
     param (
         [string]$filename
@@ -192,6 +181,26 @@ function UpdateModificationTimeForAllFrames {
     Set-ItemProperty $(BuildAllFramesGlob "$work_dir" $postfix) -Name LastWriteTime -Value $mtime
 }
 
+function FileHasDifferentModificationTime {
+    param (
+        [string]$filename,
+        [datetime]$mtime
+    )
+
+    return $mtime -ne (Get-ItemPropertyValue "$filename" -Name LastWriteTime)
+}
+
+function AllFramesHaveModificationTime {
+    param (
+        [string]$work_dir,
+        [string]$postfix,
+        [datetime]$mtime
+    )
+
+    $files = Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -File
+    return ($files | Where-Object { $_.LastWriteTime -ne $mtime }).Count -eq 0
+}
+
 function DeleteAllFrames {
     param (
         [string]$work_dir,
@@ -199,6 +208,14 @@ function DeleteAllFrames {
     )
 
     Remove-Item -Path $(BuildAllFramesGlob "$work_dir" $postfix)
+}
+
+function FileIsMissing {
+    param (
+        [string]$filename
+    )
+
+    return -not (Test-Path "$filename")
 }
 
 function InitializeParameters {
@@ -245,7 +262,7 @@ function InputVideoMustExist {
         [int]$id
     )
 
-    if (-Not (Test-Path $video)) {
+    if (FileIsMissing "$video") {
         Die 1 "Video $id not found: $video"
     }
 }
@@ -277,7 +294,7 @@ function CreateWorkDirectory {
         [string]$work_dir
     )
 
-    if ( -not (Test-Path "$work_dir") ) {
+    if (FileIsMissing "$work_dir") {
         New-Item -Path "$work_dir" -ItemType Directory | Out-Null
     }
 }
@@ -384,12 +401,16 @@ function GenerateDiffs {
     WithDuration 'generating diffs...' {
         $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
         $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+        $func_FileHasDifferentModificationTime = ${function:FileHasDifferentModificationTime}.ToString()
+        $func_FileIsMissing = ${function:FileIsMissing}.ToString()
         $func_GetFileModificationTime = ${function:GetFileModificationTime}.ToString()
         $func_UpdateFileModificationTime = ${function:UpdateFileModificationTime}.ToString()
 
         $generated_frames = 1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
             ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
             ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+            ${function:FileHasDifferentModificationTime} = $using:func_FileHasDifferentModificationTime
+            ${function:FileIsMissing} = $using:func_FileIsMissing
             ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
             ${function:UpdateFileModificationTime} = $using:func_UpdateFileModificationTime
 
@@ -405,7 +426,7 @@ function GenerateDiffs {
             # only create diff if it either doesn't exist or its modification time doesn't match $mtime
             $generated = $false
 
-            if ((-not (Test-Path "$frame_d")) -or ($mtime -ne (GetFileModificationTime "$frame_d"))) {
+            if ((FileIsMissing "$frame_d") -or (FileHasDifferentModificationTime "$frame_d" $mtime)) {
                 magick -limit thread $using:imagick_threads "$frame_a" "$frame_b" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "$frame_d"
 
                 # update modification time of the diff to the latest time
