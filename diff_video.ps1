@@ -190,6 +190,15 @@ function FileHasDifferentModificationTime {
     return $mtime -ne (Get-ItemPropertyValue "$filename" -Name LastWriteTime)
 }
 
+function FilesHaveDifferentModificationTimes {
+    param (
+        [string]$filename1,
+        [string]$filename2
+    )
+
+    return (Get-ItemPropertyValue "$filename1" -Name LastWriteTime) -ne (Get-ItemPropertyValue "$filename2" -Name LastWriteTime)
+}
+
 function AllFramesHaveModificationTime {
     param (
         [string]$work_dir,
@@ -451,6 +460,37 @@ function GenerateDiffs {
     }
 }
 
+function CheckIfDiffsNeedToBeNormalized {
+    param (
+        [string]$work_dir,
+        [int]$number_of_frames,
+        [int]$num_cores
+    )
+
+    WithDuration 'checking if diffs need to be normalized...' {
+        $normalization_needed = $false
+
+        if ($number_of_frames -eq (CountExtractedFrames "$work_dir" 'n')) {
+            foreach ($i in 1..$number_of_frames) {
+                if (FilesHaveDifferentModificationTimes $(BuildFrameFullPath "$work_dir" 'd' $i) (BuildFrameFullPath "$work_dir" 'n' $i)) {
+                    $normalization_needed = $true
+                    break
+                }
+            }
+        } else {
+            $normalization_needed = $true
+        }
+
+        if ($normalization_needed) {
+            Write-Host '  diffs need to be normalized'
+        } else {
+            Write-Host "  diffs don't need to be normalized"
+        }
+
+        return $normalization_needed
+    }
+}
+
 function CalculateMinMaxIntensity {
     param (
         [string]$work_dir,
@@ -501,14 +541,22 @@ function NormalizeDiffs {
     WithDuration 'normalizing diffs...' {
         $func_BuildFrameBasename = ${function:BuildFrameBasename}.ToString()
         $func_BuildFrameFullPath = ${function:BuildFrameFullPath}.ToString()
+        $func_GetFileModificationTime = ${function:GetFileModificationTime}.ToString()
+        $func_UpdateFileModificationTime = ${function:UpdateFileModificationTime}.ToString()
 
         1..$number_of_frames | ForEach-Object -ThrottleLimit $num_cores -Parallel {
             ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
             ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
+            ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
+            ${function:UpdateFileModificationTime} = $using:func_UpdateFileModificationTime
 
             $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
             $frame_n = BuildFrameFullPath "${using:work_dir}" 'n' $_
+            $mtime = GetFileModificationTime "$frame_d"
+
             magick -limit thread $using:imagick_threads "${frame_d}" -level "$using:min_intensity,$using:max_intensity" "${frame_n}"
+            UpdateFileModificationTime "$frame_n" $mtime
+
             $_
         } | WithProgress -Activity 'normalizing diffs...' -MaxCounter $number_of_frames
     }
@@ -574,8 +622,11 @@ function Main {
     CreateWorkDirectory $WorkDir
     $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $FFmpegThreads
     GenerateDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads
-    $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $Jobs $IMagickThreads
-    NormalizeDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads $min_intensity $max_intensity
+
+    if (CheckIfDiffsNeedToBeNormalized $WorkDir $number_of_frames $Jobs) {
+        $min_intensity, $max_intensity = CalculateMinMaxIntensity $WorkDir $number_of_frames $Jobs $IMagickThreads
+        NormalizeDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads $min_intensity $max_intensity
+    }
 
     if (-not $NoDiffVideo) {
         RenderVideoDiff $WorkDir $Output $number_of_frames
