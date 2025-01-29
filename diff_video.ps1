@@ -598,6 +598,26 @@ function RenderVideoMontage {
     }
 }
 
+function RenderDiffAndMontageVideosSimultaneously {
+    param (
+        [string]$work_dir,
+        [string]$output_video_diff,
+        [string]$output_video_montage,
+        [int]$number_of_frames
+    )
+
+    WithDuration 'rendering diff and montage videos simultaneously...' {
+        $frames_a = BuildFFmpegFramesFilenamePattern "$work_dir" 'a'
+        $frames_b = BuildFFmpegFramesFilenamePattern "$work_dir" 'b'
+        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
+
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff" -map '[out2]' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage" |
+            Where-Object { $_ -match 'frame=(\d+)' } |
+            ForEach-Object { $Matches[1] } |
+            WithProgress -Activity 'rendering diff and montage videos simultaneously...' -MaxCounter $number_of_frames -StatusText 'frames' -UpdateCounter { $_ }
+    }
+}
+
 function DeleteWorkDirectory {
     param (
         [string]$work_dir
@@ -628,12 +648,17 @@ function Main {
         NormalizeDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads $min_intensity $max_intensity
     }
 
-    if (-not $NoDiffVideo) {
-        RenderVideoDiff $WorkDir $Output $number_of_frames
-    }
+    # render both videos simultaneously if possible
+    if ((-not $NoDiffVideo) -and (-not $NoMontageVideo)) {
+        RenderDiffAndMontageVideosSimultaneously $WorkDir $Output $Montage $number_of_frames
+    } else {
+        if (-not $NoDiffVideo) {
+            RenderVideoDiff $WorkDir $Output $number_of_frames
+        }
 
-    if (-not $NoMontageVideo) {
-        RenderVideoMontage $WorkDir $Montage $number_of_frames
+        if (-not $NoMontageVideo) {
+            RenderVideoMontage $WorkDir $Montage $number_of_frames
+        }
     }
 
     if (-not $DontDeleteWorkDir) {
