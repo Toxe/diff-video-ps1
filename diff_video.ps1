@@ -96,7 +96,7 @@ function AddPostfixToFilename {
 function BuildWorkDirName {
     $temp_dir = [System.IO.Path]::GetTempPath()
     $random_name = [System.IO.Path]::GetRandomFileName()
-    return Join-Path -Path "$temp_dir" -ChildPath "$random_name"
+    return Join-Path -Path $temp_dir -ChildPath $random_name
 }
 
 function BuildFFmpegFramesFilenamePattern {
@@ -105,7 +105,7 @@ function BuildFFmpegFramesFilenamePattern {
         [string]$postfix
     )
 
-    return Join-Path -Path "$dir" -ChildPath ('%06d_{0}.png' -f $postfix)
+    return Join-Path -Path $dir -ChildPath ('%06d_{0}.png' -f $postfix)
 }
 
 function BuildAllFramesGlob {
@@ -114,7 +114,7 @@ function BuildAllFramesGlob {
         [string]$postfix
     )
 
-    return Join-Path -Path "$dir" -ChildPath ('\*_{0}.png' -f $postfix)
+    return Join-Path -Path $dir -ChildPath ('\*_{0}.png' -f $postfix)
 }
 
 function BuildFrameBasename {
@@ -133,7 +133,7 @@ function BuildFrameFullPath {
         [int]$id
     )
 
-    return Join-Path -Path "$dir" -ChildPath (& BuildFrameBasename $postfix $id)
+    return Join-Path -Path $dir -ChildPath (& BuildFrameBasename $postfix $id)
 }
 
 function GetFrameCountFromVideo {
@@ -141,7 +141,7 @@ function GetFrameCountFromVideo {
         [string]$video
     )
 
-    return mediainfo --Inform='Video;%FrameCount%' "$video"
+    return mediainfo --Inform='Video;%FrameCount%' $video
 }
 
 function CountExtractedFrames {
@@ -150,7 +150,7 @@ function CountExtractedFrames {
         [string]$postfix
     )
 
-    return (Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -Name -File).Count
+    return (Get-ChildItem -Path $(BuildAllFramesGlob $work_dir $postfix) -Name -File).Count
 }
 
 function GetFileModificationTime {
@@ -158,7 +158,7 @@ function GetFileModificationTime {
         [string]$filename
     )
 
-    return Get-ItemPropertyValue "$filename" -Name LastWriteTime
+    return Get-ItemPropertyValue $filename -Name LastWriteTime
 
 }
 
@@ -168,7 +168,7 @@ function UpdateFileModificationTime {
         [datetime]$mtime
     )
 
-    Set-ItemProperty "$filename" -Name LastWriteTime -Value $mtime
+    Set-ItemProperty $filename -Name LastWriteTime -Value $mtime
 }
 
 function UpdateModificationTimeForAllFrames {
@@ -178,7 +178,7 @@ function UpdateModificationTimeForAllFrames {
         [datetime]$mtime
     )
 
-    Set-ItemProperty $(BuildAllFramesGlob "$work_dir" $postfix) -Name LastWriteTime -Value $mtime
+    Set-ItemProperty $(BuildAllFramesGlob $work_dir $postfix) -Name LastWriteTime -Value $mtime
 }
 
 function FileHasDifferentModificationTime {
@@ -187,7 +187,7 @@ function FileHasDifferentModificationTime {
         [datetime]$mtime
     )
 
-    return $mtime -ne (Get-ItemPropertyValue "$filename" -Name LastWriteTime)
+    return $mtime -ne (Get-ItemPropertyValue $filename -Name LastWriteTime)
 }
 
 function FilesHaveDifferentModificationTimes {
@@ -196,7 +196,7 @@ function FilesHaveDifferentModificationTimes {
         [string]$filename2
     )
 
-    return (Get-ItemPropertyValue "$filename1" -Name LastWriteTime) -ne (Get-ItemPropertyValue "$filename2" -Name LastWriteTime)
+    return (Get-ItemPropertyValue $filename1 -Name LastWriteTime) -ne (Get-ItemPropertyValue $filename2 -Name LastWriteTime)
 }
 
 function AllFramesHaveModificationTime {
@@ -206,7 +206,7 @@ function AllFramesHaveModificationTime {
         [datetime]$mtime
     )
 
-    $files = Get-ChildItem -Path $(BuildAllFramesGlob "$work_dir" $postfix) -File
+    $files = Get-ChildItem -Path $(BuildAllFramesGlob $work_dir $postfix) -File
     return ($files | Where-Object { $_.LastWriteTime -ne $mtime }).Count -eq 0
 }
 
@@ -216,7 +216,7 @@ function DeleteAllFrames {
         [string]$postfix
     )
 
-    Remove-Item -Path $(BuildAllFramesGlob "$work_dir" $postfix)
+    Remove-Item -Path $(BuildAllFramesGlob $work_dir $postfix)
 }
 
 function FileIsMissing {
@@ -224,7 +224,7 @@ function FileIsMissing {
         [string]$filename
     )
 
-    return -not (Test-Path "$filename")
+    return -not (Test-Path $filename)
 }
 
 function InitializeParameters {
@@ -271,7 +271,7 @@ function InputVideoMustExist {
         [int]$id
     )
 
-    if (FileIsMissing "$video") {
+    if (FileIsMissing $video) {
         Die 1 "Video $id not found: $video"
     }
 }
@@ -303,8 +303,8 @@ function CreateWorkDirectory {
         [string]$work_dir
     )
 
-    if (FileIsMissing "$work_dir") {
-        New-Item -Path "$work_dir" -ItemType Directory | Out-Null
+    if (FileIsMissing $work_dir) {
+        New-Item -Path $work_dir -ItemType Directory | Out-Null
     }
 }
 
@@ -345,31 +345,31 @@ function ExtractFrames {
             $video = $_[1]
             $postfix = $_[2]
 
-            $frame_count_from_video = GetFrameCountFromVideo "$video"
-            $number_of_existing_frames = CountExtractedFrames "${using:work_dir}" $postfix
-            $mtime = GetFileModificationTime "$video"
+            $frame_count_from_video = GetFrameCountFromVideo $video
+            $number_of_existing_frames = CountExtractedFrames ${using:work_dir} $postfix
+            $mtime = GetFileModificationTime $video
 
             # only extract frames if either some frame files are missing or the modification time of at least one file is outdated
-            if (($frame_count_from_video -ne $number_of_existing_frames) -or (-not (AllFramesHaveModificationTime "${using:work_dir}" $postfix $mtime))) {
+            if (($frame_count_from_video -ne $number_of_existing_frames) -or (-not (AllFramesHaveModificationTime ${using:work_dir} $postfix $mtime))) {
                 Write-Host "  video ${id}: extracting $frame_count_from_video frames"
 
                 # delete all existing frames
-                DeleteAllFrames "${using:work_dir}" $postfix
+                DeleteAllFrames ${using:work_dir} $postfix
 
                 # extract video frames
-                $frames = BuildFFmpegFramesFilenamePattern "${using:work_dir}" $postfix
-                ffmpeg -v error -i "$video" -threads $using:ffmpeg_threads "$frames"
+                $frames = BuildFFmpegFramesFilenamePattern ${using:work_dir} $postfix
+                ffmpeg -v error -i $video -threads $using:ffmpeg_threads $frames
 
                 # set modification time of all extracted frames to the one of their corresponding video
-                UpdateModificationTimeForAllFrames "${using:work_dir}" $postfix $mtime
+                UpdateModificationTimeForAllFrames ${using:work_dir} $postfix $mtime
             } else {
                 Write-Host "  video ${id}: no need to extract frames again"
             }
         }
 
         # count number of extracted frames
-        $video1_number_of_frames = CountExtractedFrames "$work_dir" 'a'
-        $video2_number_of_frames = CountExtractedFrames "$work_dir" 'b'
+        $video1_number_of_frames = CountExtractedFrames $work_dir 'a'
+        $video2_number_of_frames = CountExtractedFrames $work_dir 'b'
         Write-Host "  video 1 frames: $video1_number_of_frames"
         Write-Host "  video 2 frames: $video2_number_of_frames"
 
@@ -385,12 +385,12 @@ function ExtractFrames {
             $postfix = if ($video1_number_of_frames -gt $video2_number_of_frames) { 'a' } else { 'b' }
 
             for ($i = 1; $i -le $num_frames; ++$i) {
-                $frame = BuildFrameFullPath "$work_dir" $postfix $i
+                $frame = BuildFrameFullPath $work_dir $postfix $i
 
                 if ($i -gt $offset) {
-                    Rename-Item -Path "$frame" -NewName "$(BuildFrameBasename $postfix ($i - $offset))"
+                    Rename-Item -Path $frame -NewName "$(BuildFrameBasename $postfix ($i - $offset))"
                 } else {
-                    Remove-Item -Path "$frame"
+                    Remove-Item -Path $frame
                 }
             }
         }
@@ -423,23 +423,23 @@ function GenerateDiffs {
             ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
             ${function:UpdateFileModificationTime} = $using:func_UpdateFileModificationTime
 
-            $frame_a = BuildFrameFullPath "${using:work_dir}" 'a' $_
-            $frame_b = BuildFrameFullPath "${using:work_dir}" 'b' $_
-            $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
+            $frame_a = BuildFrameFullPath ${using:work_dir} 'a' $_
+            $frame_b = BuildFrameFullPath ${using:work_dir} 'b' $_
+            $frame_d = BuildFrameFullPath ${using:work_dir} 'd' $_
 
             # determine the latest modification time between frames a and b
-            $mtime_a = GetFileModificationTime "$frame_a"
-            $mtime_b = GetFileModificationTime "$frame_b"
+            $mtime_a = GetFileModificationTime $frame_a
+            $mtime_b = GetFileModificationTime $frame_b
             $mtime = [DateTime][math]::Max($mtime_a.Ticks, $mtime_b.Ticks)
 
             # only create diff if it either doesn't exist or its modification time doesn't match $mtime
             $generated = $false
 
-            if ((FileIsMissing "$frame_d") -or (FileHasDifferentModificationTime "$frame_d" $mtime)) {
-                magick -limit thread $using:imagick_threads "$frame_a" "$frame_b" -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 "$frame_d"
+            if ((FileIsMissing $frame_d) -or (FileHasDifferentModificationTime $frame_d $mtime)) {
+                magick -limit thread $using:imagick_threads $frame_a $frame_b -compose difference -composite -evaluate Pow 2 -evaluate divide 3 -separate -evaluate-sequence Add -evaluate Pow 0.5 $frame_d
 
                 # update modification time of the diff to the latest time
-                UpdateFileModificationTime "$frame_d" $mtime
+                UpdateFileModificationTime $frame_d $mtime
                 $generated = $true
             }
 
@@ -470,9 +470,9 @@ function CheckIfDiffsNeedToBeNormalized {
     WithDuration 'checking if diffs need to be normalized...' {
         $normalization_needed = $false
 
-        if ($number_of_frames -eq (CountExtractedFrames "$work_dir" 'n')) {
+        if ($number_of_frames -eq (CountExtractedFrames $work_dir 'n')) {
             foreach ($i in 1..$number_of_frames) {
-                if (FilesHaveDifferentModificationTimes $(BuildFrameFullPath "$work_dir" 'd' $i) (BuildFrameFullPath "$work_dir" 'n' $i)) {
+                if (FilesHaveDifferentModificationTimes $(BuildFrameFullPath $work_dir 'd' $i) (BuildFrameFullPath $work_dir 'n' $i)) {
                     $normalization_needed = $true
                     break
                 }
@@ -507,8 +507,8 @@ function CalculateMinMaxIntensity {
             ${function:BuildFrameBasename} = $using:func_BuildFrameBasename
             ${function:BuildFrameFullPath} = $using:func_BuildFrameFullPath
 
-            $frame = BuildFrameFullPath "${using:work_dir}" 'd' $_
-            $output = magick identify -limit thread $using:imagick_threads -format '%[min] %[max]\n' "${frame}"
+            $frame = BuildFrameFullPath ${using:work_dir} 'd' $_
+            $output = magick identify -limit thread $using:imagick_threads -format '%[min] %[max]\n' $frame
             $output
         } | WithProgress -Activity 'calculating min/max intensity...' -MaxCounter $number_of_frames -Process { $_ }
 
@@ -550,12 +550,12 @@ function NormalizeDiffs {
             ${function:GetFileModificationTime} = $using:func_GetFileModificationTime
             ${function:UpdateFileModificationTime} = $using:func_UpdateFileModificationTime
 
-            $frame_d = BuildFrameFullPath "${using:work_dir}" 'd' $_
-            $frame_n = BuildFrameFullPath "${using:work_dir}" 'n' $_
-            $mtime = GetFileModificationTime "$frame_d"
+            $frame_d = BuildFrameFullPath ${using:work_dir} 'd' $_
+            $frame_n = BuildFrameFullPath ${using:work_dir} 'n' $_
+            $mtime = GetFileModificationTime $frame_d
 
-            magick -limit thread $using:imagick_threads "${frame_d}" -level "$using:min_intensity,$using:max_intensity" "${frame_n}"
-            UpdateFileModificationTime "$frame_n" $mtime
+            magick -limit thread $using:imagick_threads $frame_d -level "$using:min_intensity,$using:max_intensity" $frame_n
+            UpdateFileModificationTime $frame_n $mtime
 
             $_
         } | WithProgress -Activity 'normalizing diffs...' -MaxCounter $number_of_frames
@@ -585,8 +585,8 @@ function RenderVideoDiff {
     )
 
     RenderWithFFmpeg 'rendering diff video...' $number_of_frames {
-        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_n" -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff"
+        $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_n -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast $output_video_diff
     }
 }
 
@@ -598,10 +598,10 @@ function RenderVideoMontage {
     )
 
     RenderWithFFmpeg 'rendering montage video...' $number_of_frames {
-        $frames_a = BuildFFmpegFramesFilenamePattern "$work_dir" 'a'
-        $frames_b = BuildFFmpegFramesFilenamePattern "$work_dir" 'b'
-        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage"
+        $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
+        $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
+        $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_a -framerate 60000/1001 -i $frames_b -framerate 60000/1001 -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
@@ -614,10 +614,10 @@ function RenderDiffAndMontageVideosSimultaneously {
     )
 
     RenderWithFFmpeg 'rendering diff and montage video simultaneously...' $number_of_frames {
-        $frames_a = BuildFFmpegFramesFilenamePattern "$work_dir" 'a'
-        $frames_b = BuildFFmpegFramesFilenamePattern "$work_dir" 'b'
-        $frames_n = BuildFFmpegFramesFilenamePattern "$work_dir" 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i "$frames_a" -framerate 60000/1001 -i "$frames_b" -framerate 60000/1001 -i "$frames_n" -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast "$output_video_diff" -map '[out2]' -c:v libx264 -crf 18 -preset veryfast "$output_video_montage"
+        $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
+        $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
+        $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_a -framerate 60000/1001 -i $frames_b -framerate 60000/1001 -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast $output_video_diff -map '[out2]' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
@@ -627,7 +627,7 @@ function DeleteWorkDirectory {
     )
 
     WithDuration 'deleting work directory...' {
-        Remove-Item -Path "$work_dir" -Recurse
+        Remove-Item -Path $work_dir -Recurse
     }
 }
 
