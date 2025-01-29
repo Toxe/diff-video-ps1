@@ -27,7 +27,7 @@ function WithDuration {
 
         & $command
 
-        Write-Host ('--> {0:n3} seconds' -f (((Get-Date) - $t).TotalSeconds))
+        Write-Host ('  ({0:n3} seconds)' -f (((Get-Date) - $t).TotalSeconds))
         Write-Host ''
     }
 }
@@ -521,8 +521,8 @@ function CalculateMinMaxIntensity {
             $max_intensity = [math]::max($b, $max_intensity)
         }
 
-        Write-Host "min intensity: $min_intensity"
-        Write-Host "max intensity: $max_intensity"
+        Write-Host "  min intensity: $min_intensity"
+        Write-Host "  max intensity: $max_intensity"
 
         return $min_intensity, $max_intensity
     }
