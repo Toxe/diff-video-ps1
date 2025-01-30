@@ -390,6 +390,8 @@ function CheckVideoFramerates {
         if ($framerate1 -ne $framerate2) {
             Die 4 'The input videos must have the same framerate.'
         }
+
+        return $framerate1
     }
 }
 
@@ -666,12 +668,13 @@ function RenderVideoDiff {
     param (
         [string]$work_dir,
         [string]$output_video_diff,
-        [int]$number_of_frames
+        [int]$number_of_frames,
+        [string]$framerate
     )
 
     RenderWithFFmpeg 'rendering diff video...' $number_of_frames {
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_n -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast $output_video_diff
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_n -vf 'colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0' -c:v libx264 -crf 18 -preset veryfast $output_video_diff
     }
 }
 
@@ -679,14 +682,15 @@ function RenderVideoMontage {
     param (
         [string]$work_dir,
         [string]$output_video_montage,
-        [int]$number_of_frames
+        [int]$number_of_frames,
+        [string]$framerate
     )
 
     RenderWithFFmpeg 'rendering montage video...' $number_of_frames {
         $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
         $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_a -framerate 60000/1001 -i $frames_b -framerate 60000/1001 -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
@@ -695,14 +699,15 @@ function RenderDiffAndMontageVideosSimultaneously {
         [string]$work_dir,
         [string]$output_video_diff,
         [string]$output_video_montage,
-        [int]$number_of_frames
+        [int]$number_of_frames,
+        [string]$framerate
     )
 
     RenderWithFFmpeg 'rendering diff and montage video simultaneously...' $number_of_frames {
         $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
         $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate 60000/1001 -i $frames_a -framerate 60000/1001 -i $frames_b -framerate 60000/1001 -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast $output_video_diff -map '[out2]' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast $output_video_diff -map '[out2]' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
@@ -727,7 +732,7 @@ function Main {
     OutputVideoMustBeMP4 $Output 'diff'
     OutputVideoMustBeMP4 $Montage 'montage'
 
-    CheckVideoFramerates $Video1 $Video2
+    $framerate = CheckVideoFramerates $Video1 $Video2
     CreateWorkDirectory $WorkDir
     $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $FFmpegThreads
     GenerateDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads
@@ -739,14 +744,14 @@ function Main {
 
     # render both videos simultaneously if possible
     if ((-not $NoDiffVideo) -and (-not $NoMontageVideo)) {
-        RenderDiffAndMontageVideosSimultaneously $WorkDir $Output $Montage $number_of_frames
+        RenderDiffAndMontageVideosSimultaneously $WorkDir $Output $Montage $number_of_frames $framerate
     } else {
         if (-not $NoDiffVideo) {
-            RenderVideoDiff $WorkDir $Output $number_of_frames
+            RenderVideoDiff $WorkDir $Output $number_of_frames $framerate
         }
 
         if (-not $NoMontageVideo) {
-            RenderVideoMontage $WorkDir $Montage $number_of_frames
+            RenderVideoMontage $WorkDir $Montage $number_of_frames $framerate
         }
     }
 
