@@ -1,4 +1,59 @@
-# & .\diff_video.ps1 video1 video2 output.mp4
+<#
+.SYNOPSIS
+    Compare two videos frame by frame and generate a difference video.
+
+.PARAMETER Video1
+    The first video.
+
+.PARAMETER Video2
+    The second video.
+
+.PARAMETER Output
+    The name of the difference video.
+
+.PARAMETER Montage
+    (Optional) Filename of a montage video combining the two input videos and the diff.
+
+.PARAMETER WorkDir
+    (Optional) A working directory where all the temporary files will be created.
+    Per default a temporary directory will be created and deleted afterwards.
+    Setting this option implies "DontDeleteWorkDir".
+
+.PARAMETER Jobs
+    (Optional) Number of parallel jobs.
+    Default: Number of logical CPU cores.
+
+.PARAMETER FFmpegThreads
+    (Optional) Number of FFmpeg threads when extracting frames.
+    Default: Half the number of logical CPU cores.
+
+.PARAMETER IMagickThreads
+    (Optional) Number of threads for each ImageMagick process.
+    Default: 2
+
+.PARAMETER DontDeleteWorkDir
+    Don't delete the working directory at the end of the script.
+    This option is implied when manually setting "WorkDir".
+
+.PARAMETER NoDiffVideo
+    Don't render the difference video.
+
+.PARAMETER NoMontageVideo
+    Don't render the montage video.
+
+.EXAMPLE
+    & .\diff_video.ps1 -Video1 video1.mp4 -Video2 video2.mp4 -Output diff.mp4
+
+    Compare video1.mp4 and video2.mp4 and generate a new difference video called diff.mp4.
+
+.EXAMPLE
+    & .\diff_video.ps1 video1.mp4 video2.mp4 diff.mp4
+
+    Same as the previous example but without the named parameters.
+
+.LINK
+    https://github.com/Toxe/powershell-diff-video
+#>
 
 [CmdletBinding()]
 param (
