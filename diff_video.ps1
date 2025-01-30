@@ -1,3 +1,5 @@
+#Requires –Version 7
+
 <#
 .SYNOPSIS
     Compare two videos frame by frame and generate a difference video.
