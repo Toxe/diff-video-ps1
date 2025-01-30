@@ -84,7 +84,7 @@ function WithDuration {
 
         & $command
 
-        Write-Host ('  ({0:n3} seconds)' -f (((Get-Date) - $t).TotalSeconds))
+        Write-Host ('  ({0:n3} seconds)' -f (((Get-Date) - $t).TotalSeconds)) -ForegroundColor Green
         Write-Host ''
     }
 }
