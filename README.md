@@ -4,8 +4,10 @@ Compare two videos frame by frame and generate a difference video.
 
 ## Dependencies
 
-- FFmpeg
-- ImageMagick
+- PowerShell 7+
+- [FFmpeg](https://ffmpeg.org)
+- [ImageMagick](https://imagemagick.org)
+- [MediaInfo](https://mediaarea.net/en/MediaInfo)
 
 ## Help
 
