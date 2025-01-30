@@ -138,6 +138,15 @@ function Die {
     Exit $exitcode
 }
 
+function FramerateToFPS {
+    param (
+        [string]$framerate
+    )
+
+    $a, $b = $framerate -split '/'
+    return '{0:n2}' -f ($a / $b)
+}
+
 function AddPostfixToFilename {
     param (
         [string]$filename,
@@ -362,6 +371,25 @@ function CreateWorkDirectory {
 
     if (FileIsMissing $work_dir) {
         New-Item -Path $work_dir -ItemType Directory | Out-Null
+    }
+}
+
+function CheckVideoFramerates {
+    param (
+        [string]$video1,
+        [string]$video2
+    )
+
+    WithDuration 'checking video framerates...' {
+        $framerate1 = ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 -i $video1
+        $framerate2 = ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 -i $video2
+
+        Write-Host "  video 1: $(FramerateToFPS $framerate1) FPS ($framerate1)"
+        Write-Host "  video 2: $(FramerateToFPS $framerate2) FPS ($framerate2)"
+
+        if ($framerate1 -ne $framerate2) {
+            Die 4 'The input videos must have the same framerate.'
+        }
     }
 }
 
@@ -699,6 +727,7 @@ function Main {
     OutputVideoMustBeMP4 $Output 'diff'
     OutputVideoMustBeMP4 $Montage 'montage'
 
+    CheckVideoFramerates $Video1 $Video2
     CreateWorkDirectory $WorkDir
     $number_of_frames = ExtractFrames $WorkDir $Video1 $Video2 $FFmpegThreads
     GenerateDiffs $WorkDir $number_of_frames $Jobs $IMagickThreads
