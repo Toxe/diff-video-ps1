@@ -1,6 +1,8 @@
 # Diff-Video PowerShell Script
 
-Compare two videos frame by frame and generate a difference video.
+Compare two videos frame by frame and generate a difference video and a montage video of the input and diff videos side by side.
+
+> Note: While PowerShell is also available for Linux and macOS I only tested this on Windows.
 
 ## Dependencies
 
@@ -8,6 +10,65 @@ Compare two videos frame by frame and generate a difference video.
 - [FFmpeg](https://ffmpeg.org)
 - [ImageMagick](https://imagemagick.org)
 - [MediaInfo](https://mediaarea.net/en/MediaInfo)
+
+## Example
+
+The following commands are all equivalent and will create two files: `diff.mp4` and `diff_montage.mp4`.
+
+```powershell
+PS> & .\diff_video.ps1 .\video1.mp4 .\video2.webm diff.mp4
+PS> & .\diff_video.ps1 -Video1 .\video1.mp4 -Video2 .\video2.webm -Output diff.mp4
+PS> & .\diff_video.ps1 -Video1 .\video1.mp4 -Video2 .\video2.webm -Output diff.mp4 -Montage diff_montage.mp4
+```
+
+```
+Parameters:
+  Video1: .\video1.mp4
+  Video2: .\video2.webm
+  Output: diff.mp4
+  Montage: diff_montage.mp4
+  WorkDir: C:\Users\toxe\AppData\Local\Temp\cehzzfjr.e3r
+  Jobs: 24
+  FFmpegThreads: 12
+  IMagickThreads: 2
+  DontDeleteWorkDir: False
+  NoDiffVideo: False
+  NoMontageVideo: False
+
+checking video framerates...
+  video 1: 59.94 FPS (60000/1001)
+  video 2: 59.94 FPS (19001/317)
+  (0.210 seconds)
+
+extracting frames...
+  video 1: extracting 1224 frames
+  video 2: extracting 1224 frames
+  video 1 frames: 1224
+  video 2 frames: 1224
+  (26.665 seconds)
+
+generating diffs...
+  generated 1224 diffs
+  (92.923 seconds)
+
+checking if diffs need to be normalized...
+  diffs need to be normalized
+  (0.010 seconds)
+
+calculating min/max intensity...
+  min intensity: 0
+  max intensity: 39321
+  (10.843 seconds)
+
+normalizing diffs...
+  (40.849 seconds)
+
+rendering diff and montage video simultaneously...
+  (43.352 seconds)
+
+deleting work directory...
+  (1.932 seconds)
+```
 
 ## Help
 
