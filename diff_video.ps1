@@ -54,7 +54,7 @@
     Same as the previous example but without the named parameters.
 
 .LINK
-    https://github.com/Toxe/powershell-diff-video
+    https://github.com/Toxe/diff-video-ps1
 #>
 
 [CmdletBinding()]
