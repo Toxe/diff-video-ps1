@@ -383,11 +383,13 @@ function CheckVideoFramerates {
     WithDuration 'checking video framerates...' {
         $framerate1 = ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 -i $video1
         $framerate2 = ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 -i $video2
+        $fps1 = FramerateToFPS $framerate1
+        $fps2 = FramerateToFPS $framerate2
 
-        Write-Host "  video 1: $(FramerateToFPS $framerate1) FPS ($framerate1)"
-        Write-Host "  video 2: $(FramerateToFPS $framerate2) FPS ($framerate2)"
+        Write-Host "  video 1: $fps1 FPS ($framerate1)"
+        Write-Host "  video 2: $fps2 FPS ($framerate2)"
 
-        if ($framerate1 -ne $framerate2) {
+        if ($fps1 -ne $fps2) {
             Die 4 'The input videos must have the same framerate.'
         }
 
