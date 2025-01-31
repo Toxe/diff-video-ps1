@@ -692,7 +692,7 @@ function RenderVideoMontage {
         $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
         $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]pad=iw:2*ih:0:ih/2:#101010[right]; [left][right]hstack' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
@@ -709,7 +709,7 @@ function RenderDiffAndMontageVideosSimultaneously {
         $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
         $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
-        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:black[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast $output_video_diff -map '[out2]' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
+        ffmpeg -v error -nostats -hide_banner -progress pipe:1 -framerate $framerate -i $frames_a -framerate $framerate -i $frames_b -framerate $framerate -i $frames_n -filter_complex '[0:v][1:v]vstack[left]; [2:v]colorchannelmixer=.0:.0:.0:0:.0:1:.0:0:.0:.0:.0:0[v2]; [v2]split[diff][out1]; [diff]pad=iw:2*ih:0:ih/2:#101010[right]; [left][right]hstack[out2]' -map '[out1]' -c:v libx264 -crf 18 -preset veryfast $output_video_diff -map '[out2]' -c:v libx264 -crf 18 -preset veryfast $output_video_montage
     }
 }
 
