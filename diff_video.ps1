@@ -471,7 +471,7 @@ function ExtractFrames {
             Write-Warning "The input videos don't have the same number of frames!"
 
             $num_frames = [math]::Max($video1_number_of_frames, $video2_number_of_frames)
-            $postfix = if ($video1_number_of_frames -gt $video2_number_of_frames) { 'a' } else { 'b' }
+            $postfix = ($video1_number_of_frames -gt $video2_number_of_frames) ? 'a' : 'b'
 
             for ($i = 1; $i -le $num_frames; ++$i) {
                 $frame = BuildFrameFullPath $work_dir $postfix $i
