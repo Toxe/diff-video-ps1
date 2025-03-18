@@ -440,7 +440,7 @@ function ExtractFrames {
 
             # only extract frames if either some frame files are missing or the modification time of at least one file is outdated
             if (($frame_count_from_video -ne $number_of_existing_frames) -or (-not (AllFramesHaveModificationTime ${using:work_dir} $postfix $mtime))) {
-                Write-Host "  video ${id}: extracting $frame_count_from_video frames"
+                Write-Host "  video ${id}: extracting $frame_count_from_video frames (estimated)"
 
                 # delete all existing frames
                 DeleteAllFrames ${using:work_dir} $postfix
@@ -571,9 +571,9 @@ function CheckIfDiffsNeedToBeNormalized {
         }
 
         if ($normalization_needed) {
-            Write-Host '  diffs need to be normalized'
+            Write-Host '  yes, diffs need to be normalized'
         } else {
-            Write-Host "  diffs don't need to be normalized"
+            Write-Host "  no, diffs don't need to be normalized"
         }
 
         return $normalization_needed
@@ -705,7 +705,7 @@ function RenderDiffAndMontageVideosSimultaneously {
         [string]$framerate
     )
 
-    RenderWithFFmpeg 'rendering diff and montage video simultaneously...' $number_of_frames {
+    RenderWithFFmpeg 'rendering diff and montage videos simultaneously...' $number_of_frames {
         $frames_a = BuildFFmpegFramesFilenamePattern $work_dir 'a'
         $frames_b = BuildFFmpegFramesFilenamePattern $work_dir 'b'
         $frames_n = BuildFFmpegFramesFilenamePattern $work_dir 'n'
